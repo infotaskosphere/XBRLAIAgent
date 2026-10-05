@@ -18,6 +18,8 @@ public sealed class MainForm : Form
     private readonly TextBox currentPdf = new();
     private readonly TextBox currentFinancialPdf = new();
     private readonly TextBox currentSupportingPdf = new();
+    private readonly FlowLayoutPanel previousSupportingList = new();
+    private readonly List<TextBox> previousSupportingDocuments = new();
     private readonly Label status = new();
     private readonly TextBox analysis = new();
     private readonly ProgressBar progress = new();
@@ -99,8 +101,8 @@ public sealed class MainForm : Form
 
     private void ApplyResponsiveLayout()
     {
-        var compact = ClientSize.Width < 1150;
-        tabs.ItemSize = new Size(compact ? 185 : 210, 42);
+        var availableTabWidth = Math.Max(160, (tabs.ClientSize.Width - 8) / 3);
+        tabs.ItemSize = new Size(availableTabWidth, 42);
 
         foreach (Control control in Controls)
         {
@@ -120,7 +122,7 @@ public sealed class MainForm : Form
         tabs.Dock = DockStyle.Fill;
         tabs.Padding = new Point(20, 10);
         tabs.DrawMode = TabDrawMode.OwnerDrawFixed;
-        tabs.ItemSize = new Size(210, 42);
+        tabs.ItemSize = new Size(Math.Max(160, (ClientSize.Width - 8) / 3), 42);
         tabs.SizeMode = TabSizeMode.Fixed;
         tabs.DrawItem += (_, e) =>
         {
@@ -174,21 +176,46 @@ public sealed class MainForm : Form
     private void BuildPreviousTab(TabPage page)
     {
         var panel = NewContentPanel();
-        AddHero(panel, "Previous-year reference", "Teach the agent the exact XBRL structure, concepts, roles, dimensions and populated areas used last year.");
+        AddHero(panel, "Previous-year reference", "Teach the agent the exact XBRL structure, concepts, roles, dimensions and populated areas used last year. Add as many supporting reference documents as needed.");
 
-        var card = Card(960, 250);
+        var card = Card(960, 455);
         AddFileRow(card, "PREVIOUS YEAR XBRL / XML", previousXml, PickXml, 0);
         AddFileRow(card, "PREVIOUS YEAR FINANCIAL / XBRL PDF", previousPdf, PickPreviousPdf, 1);
         AddFileRow(card, "PREVIOUS YEAR AUDIT REPORT", previousAuditReport, PickPreviousAuditReport, 2);
+
+        var otherLabel = new Label
+        {
+            Text = "PREVIOUS YEAR OTHER / SUPPORTING DOCUMENTS",
+            Font = new Font("Segoe UI Semibold", 8.5f),
+            ForeColor = Color.FromArgb(75, 88, 105),
+            AutoSize = true,
+            Location = new Point(14, 232)
+        };
+        card.Controls.Add(otherLabel);
+
+        previousSupportingList.Location = new Point(14, 258);
+        previousSupportingList.Size = new Size(card.Width - 180, 165);
+        previousSupportingList.FlowDirection = FlowDirection.TopDown;
+        previousSupportingList.WrapContents = false;
+        previousSupportingList.AutoScroll = true;
+        previousSupportingList.BackColor = Color.FromArgb(250, 251, 253);
+        previousSupportingList.BorderStyle = BorderStyle.FixedSingle;
+        card.Controls.Add(previousSupportingList);
+
+        var addOther = SecondaryButton("+ ADD OTHER DOCUMENT", 160);
+        addOther.Location = new Point(card.Width - 165, 258);
+        addOther.Click += (_, _) => AddPreviousSupportingDocument();
+        card.Controls.Add(addOther);
+
         panel.Controls.Add(card);
 
         var build = PrimaryButton("BUILD REFERENCE MAP", 220);
-        build.Location = new Point(25, 395);
+        build.Location = new Point(25, 600);
         build.Click += (_, _) => AnalyzePreviousYear();
         panel.Controls.Add(build);
 
-        var hint = InfoCard("Simple workflow", "These are the only four primary documents you need. Supporting documents can be added later without changing this main workflow.", 680);
-        hint.Location = new Point(265, 385);
+        var hint = InfoCard("Reference rule", "The XML/XAG remains the authoritative XBRL structure. Financial statements, audit reports and all additional reference documents are evidence for terminology, disclosures and prior-year populated areas. No prior-year value is copied blindly.", 700);
+        hint.Location = new Point(265, 590);
         panel.Controls.Add(hint);
 
         page.Controls.Add(panel);
@@ -350,7 +377,8 @@ public sealed class MainForm : Form
 
         if (label.Contains("AUDIT", StringComparison.OrdinalIgnoreCase) ||
             label.Contains("FINANCIAL", StringComparison.OrdinalIgnoreCase) ||
-            label.Contains("SUPPORTING", StringComparison.OrdinalIgnoreCase))
+            label.Contains("SUPPORTING", StringComparison.OrdinalIgnoreCase) ||
+            label.Contains("OTHER", StringComparison.OrdinalIgnoreCase))
             return new[] { ".pdf", ".docx", ".doc", ".txt" };
 
         return Array.Empty<string>();
@@ -411,6 +439,70 @@ public sealed class MainForm : Form
 
         Attach(control);
     }
+
+    private void AddPreviousSupportingDocument(string? initialPath = null)
+    {
+        var index = previousSupportingDocuments.Count;
+        var row = new Panel
+        {
+            Width = previousSupportingList.ClientSize.Width - 28,
+            Height = 48,
+            BackColor = Color.White,
+            Margin = new Padding(6)
+        };
+
+        var box = new TextBox
+        {
+            ReadOnly = true,
+            BorderStyle = BorderStyle.FixedSingle,
+            BackColor = Color.White,
+            Location = new Point(8, 7),
+            Width = Math.Max(220, row.Width - 210),
+            Height = 32
+        };
+
+        if (!string.IsNullOrWhiteSpace(initialPath))
+            box.Text = initialPath;
+
+        var browse = SecondaryButton("BROWSE", 88);
+        browse.Location = new Point(row.Width - 190, 7);
+        browse.Click += (_, _) =>
+        {
+            using var dialog = new OpenFileDialog
+            {
+                Title = "Select Previous Year Supporting Document",
+                Filter = "Supported documents (*.pdf;*.docx;*.doc;*.txt;*.csv)|*.pdf;*.docx;*.doc;*.txt;*.csv|All files (*.*)|*.*"
+            };
+
+            if (dialog.ShowDialog() == DialogResult.OK)
+                box.Text = dialog.FileName;
+        };
+
+        var remove = SecondaryButton("REMOVE", 82);
+        remove.Location = new Point(row.Width - 96, 7);
+        remove.Click += (_, _) =>
+        {
+            previousSupportingDocuments.Remove(box);
+            previousSupportingList.Controls.Remove(row);
+            row.Dispose();
+        };
+
+        row.Controls.Add(box);
+        row.Controls.Add(browse);
+        row.Controls.Add(remove);
+        EnableFileDrop(row, new[] { ".pdf", ".docx", ".doc", ".txt", ".csv" });
+
+        previousSupportingDocuments.Add(box);
+        previousSupportingList.Controls.Add(row);
+        previousSupportingList.ScrollControlIntoView(row);
+    }
+
+    private string[] GetPreviousSupportingPaths() =>
+        previousSupportingDocuments
+            .Select(x => x.Text)
+            .Where(File.Exists)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
     private void PickXml()
     {
@@ -510,7 +602,7 @@ public sealed class MainForm : Form
             var previews = new System.Text.StringBuilder();
             foreach (var file in currentFiles)
             {
-                var text = await Task.Run(() => DocumentService.ExtractPdfText(file, 30000));
+                var text = await Task.Run(() => DocumentService.ExtractDocumentText(file, 30000));
                 previews.AppendLine($"FILE: {Path.GetFileName(file)}");
                 previews.AppendLine($"Extracted characters: {text.Length:N0}");
                 previews.AppendLine(text[..Math.Min(text.Length, 5000)]);
@@ -569,13 +661,16 @@ public sealed class MainForm : Form
             progress.Value = 10;
             var reference = await Task.Run(() => BuildReferenceSummary(source));
             progress.Value = 35;
-            status.Text = $"Preparing {currentFiles.Length + 2} source documents for Gemini...";
+            status.Text = $"Preparing {currentFiles.Length + previousSupportingDocuments.Count + 2} source documents for Gemini...";
             status.ForeColor = Blue;
+
+            var previousSupportingFiles = GetPreviousSupportingPaths();
 
             var result = await ai.GenerateMappingAsync(
                 reference,
                 previousPdf.Text,
                 previousAuditReport.Text,
+                previousSupportingFiles,
                 currentFiles);
 
             progress.Value = 100;
