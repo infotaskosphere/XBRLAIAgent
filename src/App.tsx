@@ -106,10 +106,45 @@ export const App: React.FC = () => {
     }, 600);
   };
 
-  // Update inline fact
-  const handleUpdateFact = (id: string, updated: Partial<MappedFact>) => {
-    setFacts(prev => prev.map(f => (f.id === id ? { ...f, ...updated } : f)));
-    showToast('success', 'Line item value updated');
+  // Update inline fact with history tracking
+  const handleUpdateFact = (
+    id: string, 
+    updated: Partial<MappedFact>, 
+    historyMeta?: { reason?: string; isRevert?: boolean; author?: string; revertToEntryId?: string }
+  ) => {
+    setFacts(prev => prev.map(f => {
+      if (f.id !== id) return f;
+
+      const isValChanged = updated.currentValue !== undefined && updated.currentValue !== f.currentValue;
+      const isConceptChanged = updated.conceptName !== undefined && updated.conceptName !== f.conceptName;
+      const isSagChanged = updated.sagFieldId !== undefined && updated.sagFieldId !== f.sagFieldId;
+
+      let newHistory = f.history ? [...f.history] : [];
+      if (isValChanged || isConceptChanged || isSagChanged || historyMeta?.isRevert) {
+        newHistory.unshift({
+          id: `hist-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          factId: f.id,
+          timestamp: new Date().toISOString(),
+          type: historyMeta?.isRevert ? 'REVERTED' : (updated.editedManually !== false ? 'MANUAL_OVERRIDE' : 'AI_REMAP'),
+          author: historyMeta?.author || 'Auditor',
+          previousValue: f.currentValue,
+          newValue: updated.currentValue !== undefined ? updated.currentValue : f.currentValue,
+          previousConcept: f.conceptName,
+          newConcept: updated.conceptName || f.conceptName,
+          notes: historyMeta?.reason || (historyMeta?.isRevert ? 'Reverted to historical state' : 'Manual adjustment by auditor'),
+          confidence: f.confidence
+        });
+      }
+
+      return {
+        ...f,
+        ...updated,
+        history: newHistory,
+        editedManually: historyMeta?.isRevert ? false : (updated.editedManually ?? true)
+      };
+    }));
+    
+    showToast('success', historyMeta?.isRevert ? 'Reverted to previous version' : 'Fact updated and logged in history audit trail');
   };
 
   // Detect SAG Gen XBRL simulation
@@ -217,6 +252,7 @@ export const App: React.FC = () => {
           <SagGenXbrlTab
             facts={facts}
             taxonomy={taxonomy}
+            onUpdateFact={handleUpdateFact}
           />
         )}
 

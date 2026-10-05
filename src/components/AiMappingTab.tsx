@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Search, Sparkles, Filter, CheckCircle2, AlertTriangle, RefreshCw, FileText, ArrowUpDown, Edit2, ShieldAlert } from 'lucide-react';
-import { MappedFact, TaxonomyStandard, MappingStatus } from '../types';
+import { Search, Sparkles, Filter, CheckCircle2, AlertTriangle, RefreshCw, FileText, ArrowUpDown, Edit2, ShieldAlert, History } from 'lucide-react';
+import { MappedFact, TaxonomyStandard, MappingStatus, FactHistoryEntry } from '../types';
+import { FactHistorySidebar } from './FactHistorySidebar';
 
 interface AiMappingTabProps {
   facts: MappedFact[];
   taxonomy: TaxonomyStandard;
-  onUpdateFact: (id: string, updated: Partial<MappedFact>) => void;
+  onUpdateFact: (id: string, updated: Partial<MappedFact>, historyMeta?: any) => void;
   onRunMapping: () => void;
   isProcessing: boolean;
   onNavigateToSag: () => void;
@@ -24,6 +25,8 @@ export const AiMappingTab: React.FC<AiMappingTabProps> = ({
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [editingFactId, setEditingFactId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>('');
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [selectedHistoryFact, setSelectedHistoryFact] = useState<MappedFact | null>(null);
 
   const filteredFacts = facts.filter(f => {
     const matchesSearch = 
@@ -61,6 +64,18 @@ export const AiMappingTab: React.FC<AiMappingTabProps> = ({
       status: 'CONFIRMED'
     });
     setEditingFactId(null);
+  };
+
+  const handleRevertFact = (factId: string, entry: FactHistoryEntry) => {
+    onUpdateFact(factId, {
+      currentValue: entry.newValue,
+      conceptName: entry.newConcept || undefined,
+      editedManually: false,
+      status: 'CONFIRMED'
+    }, {
+      isRevert: true,
+      reason: `Reverted to historical version from ${new Date(entry.timestamp).toLocaleDateString()}`
+    });
   };
 
   const getStatusBadge = (status: MappingStatus) => {
@@ -121,7 +136,21 @@ export const AiMappingTab: React.FC<AiMappingTabProps> = ({
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={() => {
+                setSelectedHistoryFact(null);
+                setIsHistoryOpen(true);
+              }}
+              className="px-3.5 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-lg shadow-sm transition-all flex items-center gap-1.5"
+              title="Open Audit Trail & Change History Sidebar"
+            >
+              <History className="w-3.5 h-3.5 text-[#145ca8]" />
+              <span>Audit History</span>
+              {facts.some(f => (f.history || []).some(h => h.type === 'MANUAL_OVERRIDE')) && (
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+              )}
+            </button>
             <button
               onClick={onRunMapping}
               disabled={isProcessing}
@@ -335,12 +364,28 @@ export const AiMappingTab: React.FC<AiMappingTabProps> = ({
 
                       {/* Action */}
                       <td className="py-2.5 px-3 text-center">
-                        <button
-                          onClick={() => startEdit(fact)}
-                          className="px-2 py-1 text-[11px] text-[#145ca8] hover:bg-blue-50 rounded font-semibold transition-colors"
-                        >
-                          Edit
-                        </button>
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            onClick={() => startEdit(fact)}
+                            className="px-2 py-1 text-[11px] text-[#145ca8] hover:bg-blue-50 rounded font-semibold transition-colors"
+                            title="Edit value"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedHistoryFact(fact);
+                              setIsHistoryOpen(true);
+                            }}
+                            className="p-1 text-slate-400 hover:text-[#145ca8] hover:bg-blue-50 rounded transition-colors relative"
+                            title="View fact history & revert overrides"
+                          >
+                            <History className="w-3.5 h-3.5" />
+                            {fact.history && fact.history.some(h => h.type === 'MANUAL_OVERRIDE') && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 absolute top-0.5 right-0.5" />
+                            )}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -363,6 +408,16 @@ export const AiMappingTab: React.FC<AiMappingTabProps> = ({
           </p>
         </div>
       </div>
+
+      {/* Fact History & Audit Trail Sidebar */}
+      <FactHistorySidebar
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        selectedFact={selectedHistoryFact}
+        allFacts={facts}
+        onSelectFact={setSelectedHistoryFact}
+        onRevertFact={handleRevertFact}
+      />
 
     </div>
   );

@@ -3,10 +3,10 @@ import { getTaxonomyConcepts } from './taxonomyData';
 
 // Generates robust default initial mapping data for the selected taxonomy standard
 export function generateInitialFacts(standard: TaxonomyStandard): MappedFact[] {
-  const concepts = getTaxonomyConcepts(standard);
+  let facts: MappedFact[] = [];
 
   if (standard === 'IND_AS') {
-    return [
+    facts = [
       {
         id: 'fact-1',
         conceptName: 'ind-as:CorporateIdentityNumber',
@@ -568,6 +568,27 @@ export function generateInitialFacts(standard: TaxonomyStandard): MappedFact[] {
       }
     ];
   }
+
+  return facts.map(f => ({
+    ...f,
+    sagFieldId: f.sagFieldId || getDefaultSagFieldId(f.conceptName, f.schedule),
+    sagScreenRef: f.sagScreenRef || getDefaultSagScreenRef(f.schedule, f.conceptName),
+    history: f.history && f.history.length > 0 ? f.history : [
+      {
+        id: `hist-init-${f.id}`,
+        factId: f.id,
+        timestamp: new Date(Date.now() - 3600000).toISOString(),
+        type: 'AI_INITIAL_EXTRACTION',
+        author: 'AI Agent',
+        previousValue: f.previousValue,
+        newValue: f.currentValue,
+        newConcept: f.conceptName,
+        notes: `AI auto-extracted from ${f.sourceDoc || 'Financial Statements'} (${f.confidence}% confidence)`,
+        sourceDoc: f.sourceDoc,
+        confidence: f.confidence
+      }
+    ]
+  }));
 }
 
 // Automatically maps uploaded documents against the previous-year XBRL reference
@@ -633,6 +654,14 @@ export function mapDocumentsToTaxonomy(
         fact.reviewNotes = `Significant variance: ${(pct * 100).toFixed(1)}% shift detected between PY and CY`;
       }
     }
+
+    // Ensure SAG Gen XBRL field identifiers are populated
+    if (!fact.sagFieldId) {
+      fact.sagFieldId = getDefaultSagFieldId(fact.conceptName, fact.schedule);
+    }
+    if (!fact.sagScreenRef) {
+      fact.sagScreenRef = getDefaultSagScreenRef(fact.schedule, fact.conceptName);
+    }
   });
 
   const total = facts.length;
@@ -655,4 +684,67 @@ export function mapDocumentsToTaxonomy(
       mathBalanced: Boolean(mathBalanced)
     }
   };
+}
+
+export function getDefaultSagFieldId(conceptName: string, schedule: string): string {
+  const clean = conceptName.split(':').pop() || '';
+  if (schedule === 'GENERAL') {
+    if (clean.includes('CorporateIdentityNumber')) return 'SAG_GEN_CIN_001';
+    if (clean.includes('NameOf')) return 'SAG_GEN_NAME_002';
+    if (clean.includes('PermanentAccountNumber')) return 'SAG_GEN_PAN_003';
+    return `SAG_GEN_${clean.slice(0, 8).toUpperCase()}`;
+  }
+  if (schedule === 'BALANCE_SHEET') {
+    if (clean.includes('PropertyPlantAndEquipment') || clean.includes('TangibleAssets')) return 'SAG_BS_PPE_101';
+    if (clean.includes('CapitalWorkInProgress')) return 'SAG_BS_CWIP_102';
+    if (clean.includes('RightOfUseAssets')) return 'SAG_BS_ROU_103';
+    if (clean.includes('Intangible')) return 'SAG_BS_INT_104';
+    if (clean.includes('Inventories')) return 'SAG_BS_INV_110';
+    if (clean.includes('TradeReceivables')) return 'SAG_BS_REC_111';
+    if (clean.includes('CashAndCashEquivalents') || clean.includes('CashAndBank')) return 'SAG_BS_CSH_112';
+    if (clean.includes('Assets') && !clean.includes('Current')) return 'SAG_BS_TOT_199';
+    if (clean.includes('EquityShareCapital') || clean.includes('ShareCapital')) return 'SAG_BS_EQC_201';
+    if (clean.includes('OtherEquity') || clean.includes('ReservesAndSurplus')) return 'SAG_BS_RES_202';
+    if (clean.includes('Borrowings')) return 'SAG_BS_BOR_205';
+    if (clean.includes('TradePayables')) return 'SAG_BS_TPY_210';
+    if (clean.includes('EquityAndLiabilities')) return 'SAG_BS_TEQ_299';
+    return `SAG_BS_${clean.slice(0, 8).toUpperCase()}`;
+  }
+  if (schedule === 'PROFIT_LOSS') {
+    if (clean.includes('RevenueFromOperations')) return 'SAG_PL_REV_301';
+    if (clean.includes('OtherIncome')) return 'SAG_PL_INC_302';
+    if (clean.includes('EmployeeBenefit')) return 'SAG_PL_EMP_305';
+    if (clean.includes('FinanceCost')) return 'SAG_PL_FIN_306';
+    if (clean.includes('Depreciation')) return 'SAG_PL_DEP_307';
+    if (clean.includes('ProfitBeforeTax')) return 'SAG_PL_PBT_315';
+    if (clean.includes('CurrentTax')) return 'SAG_PL_TAX_316';
+    if (clean.includes('ProfitLossForPeriod')) return 'SAG_PL_PAT_320';
+    if (clean.includes('Earnings')) return 'SAG_PL_EPS_325';
+    return `SAG_PL_${clean.slice(0, 8).toUpperCase()}`;
+  }
+  if (schedule === 'CARO') {
+    return `SAG_CARO_${clean.slice(0, 8).toUpperCase()}`;
+  }
+  return `SAG_FLD_${clean.slice(0, 8).toUpperCase()}`;
+}
+
+export function getDefaultSagScreenRef(schedule: string, conceptName: string): string {
+  const clean = conceptName.split(':').pop() || '';
+  if (schedule === 'GENERAL') return 'Company Master > Basic Details';
+  if (schedule === 'BALANCE_SHEET') {
+    if (clean.includes('Assets') && !clean.includes('Current')) return 'Balance Sheet > Total Assets Face';
+    if (clean.includes('PPE') || clean.includes('Tangible') || clean.includes('RightOfUse') || clean.includes('Intangible')) return 'Balance Sheet > Non-Current Assets';
+    if (clean.includes('Inventories') || clean.includes('Receivables') || clean.includes('Cash')) return 'Balance Sheet > Current Assets';
+    if (clean.includes('Capital') || clean.includes('Equity') || clean.includes('Reserves')) return 'Balance Sheet > Equity / Shareholders Funds';
+    if (clean.includes('Liabilities') || clean.includes('Payables') || clean.includes('Borrowings')) return 'Balance Sheet > Liabilities';
+    return 'Balance Sheet Schedule';
+  }
+  if (schedule === 'PROFIT_LOSS') {
+    if (clean.includes('Revenue') || clean.includes('Income')) return 'Profit & Loss > Part I (Income)';
+    if (clean.includes('Tax')) return 'Profit & Loss > Tax Expense';
+    if (clean.includes('Profit')) return 'Profit & Loss > Bottomline Results';
+    return 'Profit & Loss > Part II (Expenses)';
+  }
+  if (schedule === 'CARO') return 'Auditors Report > CARO 2020 Annexure';
+  return 'Financial Schedules & Disclosures';
 }

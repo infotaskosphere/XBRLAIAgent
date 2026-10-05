@@ -33,8 +33,10 @@ export function generateSagXagContent(facts: MappedFact[], options: SagExportOpt
   facts.forEach(fact => {
     const cyVal = fact.currentValue !== null && fact.currentValue !== undefined ? fact.currentValue : '';
     const pyVal = fact.previousValue !== null && fact.previousValue !== undefined ? fact.previousValue : '';
+    const fieldId = fact.sagFieldId || '';
+    const screenRef = fact.sagScreenRef || '';
     
-    xml += `    <Fact concept="${escapeXml(fact.conceptName)}" schedule="${escapeXml(fact.schedule)}" period="${escapeXml(fact.period)}" unit="${escapeXml(fact.unit)}" status="${fact.status}" confidence="${fact.confidence}">
+    xml += `    <Fact sagFieldId="${escapeXml(fieldId)}" sagScreenRef="${escapeXml(screenRef)}" concept="${escapeXml(fact.conceptName)}" schedule="${escapeXml(fact.schedule)}" period="${escapeXml(fact.period)}" unit="${escapeXml(fact.unit)}" status="${fact.status}" confidence="${fact.confidence}">
       <Label>${escapeXml(fact.label)}</Label>
       <CurrentYearValue>${escapeXml(String(cyVal))}</CurrentYearValue>
       <PreviousYearValue>${escapeXml(String(pyVal))}</PreviousYearValue>
@@ -358,6 +360,125 @@ Else
 }
 Return
 `;
+}
+
+// 7. Generate SAG Gen XBRL Structured CSV Import File (.csv)
+export function generateSagCsvContent(facts: MappedFact[], options: SagExportOptions): string {
+  const headers = [
+    'SAG_Field_ID',
+    'SAG_Screen_Reference',
+    'Concept_Code',
+    'Concept_Description',
+    'Schedule_Name',
+    'Period_Context',
+    'Current_Year_Value',
+    'Previous_Year_Value',
+    'Monetary_Unit',
+    'Decimals',
+    'Mapping_Status',
+    'Confidence_Score',
+    'Source_Document',
+    'Source_Page_Or_Sheet',
+    'Company_CIN',
+    'Taxonomy_Standard'
+  ];
+
+  const rows = facts.map(fact => {
+    const isDuration = fact.period.toLowerCase().includes('duration') || fact.schedule === 'PROFIT_LOSS' || fact.schedule === 'CARO';
+    const decimals = fact.unit === 'INR' ? (options.unitScale === 'LAKHS' ? '-5' : options.unitScale === 'CRORES' ? '-7' : '0') : fact.unit === 'pure' ? '2' : '0';
+    const cy = fact.currentValue !== null && fact.currentValue !== undefined ? String(fact.currentValue) : '';
+    const py = fact.previousValue !== null && fact.previousValue !== undefined ? String(fact.previousValue) : '';
+    const fieldId = fact.sagFieldId || '';
+    const screenRef = fact.sagScreenRef || '';
+
+    return [
+      escapeCsv(fieldId),
+      escapeCsv(screenRef),
+      escapeCsv(fact.conceptName),
+      escapeCsv(fact.label),
+      escapeCsv(fact.schedule),
+      escapeCsv(isDuration ? 'Duration' : 'Instant'),
+      escapeCsv(cy),
+      escapeCsv(py),
+      escapeCsv(fact.unit),
+      decimals,
+      escapeCsv(fact.status),
+      `${fact.confidence}%`,
+      escapeCsv(fact.sourceDoc || ''),
+      escapeCsv(fact.sourcePageOrSheet || ''),
+      escapeCsv(options.companyCin),
+      escapeCsv(options.taxonomy)
+    ].join(',');
+  });
+
+  return [headers.join(','), ...rows].join('\r\n');
+}
+
+// 8. Generate SAG Gen XBRL Structured Interchange JSON (.json)
+export function generateSagJsonContent(facts: MappedFact[], options: SagExportOptions): string {
+  const decimals = options.unitScale === 'LAKHS' ? -5 : options.unitScale === 'CRORES' ? -7 : 0;
+
+  const payload = {
+    schemaVersion: "SAG_GENXBRL_2024.2",
+    format: "SAG_XBRL_DATA_BRIDGE_JSON",
+    generator: "XBRL_AI_Agent",
+    exportedAt: new Date().toISOString(),
+    companyProfile: {
+      cin: options.companyCin,
+      companyName: options.companyName,
+      financialYearStart: options.yearStartDate,
+      financialYearEnd: options.yearEndDate,
+      taxonomyStandard: options.taxonomy,
+      natureOfReport: options.natureOfReport,
+      unitScale: options.unitScale,
+      currency: "INR",
+      defaultDecimals: decimals
+    },
+    statistics: {
+      totalFacts: facts.length,
+      confirmedFacts: facts.filter(f => f.status === 'CONFIRMED').length,
+      changedFacts: facts.filter(f => f.status === 'CHANGED').length,
+      reviewRequiredFacts: facts.filter(f => f.status === 'REVIEW_REQUIRED').length
+    },
+    taggings: facts.map(fact => {
+      const isDuration = fact.period.toLowerCase().includes('duration') || fact.schedule === 'PROFIT_LOSS' || fact.schedule === 'CARO';
+      const variance = (typeof fact.currentValue === 'number' && typeof fact.previousValue === 'number' && fact.previousValue !== 0)
+        ? {
+            amount: fact.currentValue - fact.previousValue,
+            percentage: Number((((fact.currentValue - fact.previousValue) / Math.abs(fact.previousValue)) * 100).toFixed(2))
+          }
+        : null;
+
+      return {
+        sagFieldId: fact.sagFieldId || null,
+        sagScreenRef: fact.sagScreenRef || null,
+        conceptCode: fact.conceptName,
+        label: fact.label,
+        schedule: fact.schedule,
+        periodType: isDuration ? 'duration' : 'instant',
+        periodContext: fact.period,
+        unit: fact.unit,
+        decimals: fact.unit === 'INR' ? decimals : fact.unit === 'pure' ? 2 : 0,
+        currentYearValue: fact.currentValue,
+        previousYearValue: fact.previousValue,
+        variance,
+        status: fact.status,
+        confidence: fact.confidence,
+        sourceDocument: fact.sourceDoc || null,
+        sourcePageOrSheet: fact.sourcePageOrSheet || null,
+        reviewNotes: fact.reviewNotes || null
+      };
+    })
+  };
+
+  return JSON.stringify(payload, null, 2);
+}
+
+function escapeCsv(field: string): string {
+  if (field.includes(',') || field.includes('"') || field.includes('\n') || field.includes('\r')) {
+    return `"${field.replace(/"/g, '""')}"`;
+  }
+  return field;
 }
 
 function escapeXml(str: string): string {

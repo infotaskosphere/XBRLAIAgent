@@ -45,6 +45,21 @@ export interface XbrlConcept {
 
 export type MappingStatus = 'CONFIRMED' | 'CHANGED' | 'REVIEW_REQUIRED' | 'NEW_ITEM' | 'SOURCE_CONFLICT';
 
+export interface FactHistoryEntry {
+  id: string;
+  factId: string;
+  timestamp: string;
+  type: 'AI_INITIAL_EXTRACTION' | 'MANUAL_OVERRIDE' | 'AI_REMAP' | 'REVERTED';
+  author: string; // 'AI Agent' or 'Auditor'
+  previousValue: number | string | null;
+  newValue: number | string | null;
+  previousConcept?: string;
+  newConcept?: string;
+  notes?: string;
+  sourceDoc?: string;
+  confidence?: number;
+}
+
 export interface MappedFact {
   id: string;
   conceptName: string;
@@ -63,6 +78,9 @@ export interface MappedFact {
   sourcePageOrSheet?: string;
   reviewNotes?: string;
   editedManually?: boolean;
+  sagFieldId?: string;
+  sagScreenRef?: string;
+  history?: FactHistoryEntry[];
 }
 
 export interface SagExportOptions {

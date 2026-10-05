@@ -7,15 +7,19 @@ import {
   generateMcaXbrlInstance, 
   generateSagWindowsScript,
   generatePowerShellScript,
-  generateAutoHotkeyScript
+  generateAutoHotkeyScript,
+  generateSagCsvContent,
+  generateSagJsonContent
 } from '../services/sagGenXbrlGenerator';
+import { SagFieldMappingTable } from './SagFieldMappingTable';
 
 interface SagGenXbrlTabProps {
   facts: MappedFact[];
   taxonomy: TaxonomyStandard;
+  onUpdateFact?: (id: string, updated: Partial<MappedFact>) => void;
 }
 
-export const SagGenXbrlTab: React.FC<SagGenXbrlTabProps> = ({ facts, taxonomy }) => {
+export const SagGenXbrlTab: React.FC<SagGenXbrlTabProps> = ({ facts, taxonomy, onUpdateFact }) => {
   const [options, setOptions] = useState<SagExportOptions>({
     companyCin: 'L17110MH1995PLC085000',
     companyName: 'TASKOSPHERE ENTERPRISE SOLUTIONS LIMITED',
@@ -28,7 +32,7 @@ export const SagGenXbrlTab: React.FC<SagGenXbrlTabProps> = ({ facts, taxonomy })
     natureOfReport: 'Standalone'
   });
 
-  const [activePreview, setActivePreview] = useState<'XAG' | 'MCA_XML' | 'VBS' | 'PS1' | 'AHK'>('XAG');
+  const [activePreview, setActivePreview] = useState<'XAG' | 'MCA_XML' | 'CSV' | 'JSON' | 'PS1' | 'VBS' | 'AHK'>('CSV');
   const [copied, setCopied] = useState(false);
 
   React.useEffect(() => {
@@ -37,6 +41,8 @@ export const SagGenXbrlTab: React.FC<SagGenXbrlTabProps> = ({ facts, taxonomy })
 
   const xagContent = React.useMemo(() => generateSagXagContent(facts, options), [facts, options]);
   const mcaXmlContent = React.useMemo(() => generateMcaXbrlInstance(facts, options), [facts, options]);
+  const csvContent = React.useMemo(() => generateSagCsvContent(facts, options), [facts, options]);
+  const jsonContent = React.useMemo(() => generateSagJsonContent(facts, options), [facts, options]);
   const vbsContent = React.useMemo(() => generateSagWindowsScript(options), [options]);
   const ps1Content = React.useMemo(() => generatePowerShellScript(options), [options]);
   const ahkContent = React.useMemo(() => generateAutoHotkeyScript(options), [options]);
@@ -60,6 +66,14 @@ export const SagGenXbrlTab: React.FC<SagGenXbrlTabProps> = ({ facts, taxonomy })
   const handleDownloadExcel = () => {
     const bytes = generateSagExcelWorkbook(facts, options);
     downloadFile(`SAG_GenXBRL_Import_${options.companyCin}.xlsx`, bytes, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  };
+
+  const handleDownloadCsv = () => {
+    downloadFile(`SAG_GenXBRL_Mapping_${options.companyCin}.csv`, csvContent, 'text/csv');
+  };
+
+  const handleDownloadJson = () => {
+    downloadFile(`SAG_GenXBRL_Interchange_${options.companyCin}.json`, jsonContent, 'application/json');
   };
 
   const handleDownloadMcaXml = () => {
@@ -86,12 +100,14 @@ export const SagGenXbrlTab: React.FC<SagGenXbrlTabProps> = ({ facts, taxonomy })
 
   const getPreviewText = () => {
     switch (activePreview) {
+      case 'CSV': return csvContent;
+      case 'JSON': return jsonContent;
       case 'XAG': return xagContent;
       case 'MCA_XML': return mcaXmlContent;
-      case 'VBS': return vbsContent;
       case 'PS1': return ps1Content;
+      case 'VBS': return vbsContent;
       case 'AHK': return ahkContent;
-      default: return xagContent;
+      default: return csvContent;
     }
   };
 
@@ -200,8 +216,14 @@ export const SagGenXbrlTab: React.FC<SagGenXbrlTabProps> = ({ facts, taxonomy })
         </div>
       </div>
 
+      {/* SAG Gen XBRL Field Verification & Adjustment Table */}
+      <SagFieldMappingTable 
+        facts={facts} 
+        onUpdateFact={onUpdateFact || (() => {})} 
+      />
+
       {/* Auto-Fill Download Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         
         {/* Card 1: SAG Excel Auto-Fill Package */}
         <div className="bg-gradient-to-b from-white to-emerald-50/40 p-5 rounded-xl border border-emerald-200 shadow-sm flex flex-col justify-between">
@@ -225,7 +247,51 @@ export const SagGenXbrlTab: React.FC<SagGenXbrlTabProps> = ({ facts, taxonomy })
           </button>
         </div>
 
-        {/* Card 2: Native SAG .XAG File */}
+        {/* Card 2: SAG Structured CSV Import */}
+        <div className="bg-gradient-to-b from-white to-teal-50/40 p-5 rounded-xl border border-teal-200 shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="w-10 h-10 bg-teal-100 text-teal-700 rounded-lg flex items-center justify-center mb-3">
+              <FileSpreadsheet className="w-5 h-5" />
+            </div>
+            <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-teal-100 text-teal-800 inline-block mb-1">
+              Structured Delimited
+            </span>
+            <h4 className="font-bold text-sm text-[#071b36] mb-1">SAG Structured CSV Format</h4>
+            <p className="text-xs text-slate-500 mb-4">
+              Direct CSV mapping file structured with concept codes, period types, CY & PY values, decimals, and status.
+            </p>
+          </div>
+          <button
+            onClick={handleDownloadCsv}
+            className="w-full py-2 px-3 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-lg shadow-sm flex items-center justify-center gap-1.5 transition-colors"
+          >
+            <Download className="w-4 h-4" /> Download .CSV Import
+          </button>
+        </div>
+
+        {/* Card 3: SAG Interchange JSON Bridge */}
+        <div className="bg-gradient-to-b from-white to-indigo-50/40 p-5 rounded-xl border border-indigo-200 shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="w-10 h-10 bg-indigo-100 text-indigo-700 rounded-lg flex items-center justify-center mb-3">
+              <FileCode className="w-5 h-5" />
+            </div>
+            <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 inline-block mb-1">
+              JSON Data Interchange
+            </span>
+            <h4 className="font-bold text-sm text-[#071b36] mb-1">SAG JSON Bridge</h4>
+            <p className="text-xs text-slate-500 mb-4">
+              Structured JSON interchange containing company profile metadata, tagging catalog, variance analytics, and units.
+            </p>
+          </div>
+          <button
+            onClick={handleDownloadJson}
+            className="w-full py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow-sm flex items-center justify-center gap-1.5 transition-colors"
+          >
+            <Download className="w-4 h-4" /> Download .JSON Bridge
+          </button>
+        </div>
+
+        {/* Card 4: Native SAG .XAG File */}
         <div className="bg-gradient-to-b from-white to-blue-50/40 p-5 rounded-xl border border-blue-200 shadow-sm flex flex-col justify-between">
           <div>
             <div className="w-10 h-10 bg-blue-100 text-[#145ca8] rounded-lg flex items-center justify-center mb-3">
@@ -247,7 +313,29 @@ export const SagGenXbrlTab: React.FC<SagGenXbrlTabProps> = ({ facts, taxonomy })
           </button>
         </div>
 
-        {/* Card 3: Windows Auto-Writer Script (.vbs / .ps1) */}
+        {/* Card 5: Official MCA XBRL XML Instance */}
+        <div className="bg-gradient-to-b from-white to-amber-50/40 p-5 rounded-xl border border-amber-200 shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="w-10 h-10 bg-amber-100 text-amber-700 rounded-lg flex items-center justify-center mb-3">
+              <FileCode className="w-5 h-5" />
+            </div>
+            <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-800 inline-block mb-1">
+              Official MCA Format
+            </span>
+            <h4 className="font-bold text-sm text-[#071b36] mb-1">MCA Form AOC-4 XML</h4>
+            <p className="text-xs text-slate-500 mb-4">
+              Final MCA instance document compliant with official schema references. Direct import or verification in MCA tool.
+            </p>
+          </div>
+          <button
+            onClick={handleDownloadMcaXml}
+            className="w-full py-2 px-3 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg shadow-sm flex items-center justify-center gap-1.5 transition-colors"
+          >
+            <Download className="w-4 h-4" /> Download MCA .XML
+          </button>
+        </div>
+
+        {/* Card 6: Windows Auto-Writer Script (.vbs / .ps1) */}
         <div className="bg-gradient-to-b from-white to-purple-50/40 p-5 rounded-xl border border-purple-200 shadow-sm flex flex-col justify-between">
           <div>
             <div className="w-10 h-10 bg-purple-100 text-purple-700 rounded-lg flex items-center justify-center mb-3">
@@ -279,34 +367,28 @@ export const SagGenXbrlTab: React.FC<SagGenXbrlTabProps> = ({ facts, taxonomy })
           </div>
         </div>
 
-        {/* Card 4: Official MCA XBRL XML Instance */}
-        <div className="bg-gradient-to-b from-white to-amber-50/40 p-5 rounded-xl border border-amber-200 shadow-sm flex flex-col justify-between">
-          <div>
-            <div className="w-10 h-10 bg-amber-100 text-amber-700 rounded-lg flex items-center justify-center mb-3">
-              <FileCode className="w-5 h-5" />
-            </div>
-            <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-800 inline-block mb-1">
-              Official MCA Format
-            </span>
-            <h4 className="font-bold text-sm text-[#071b36] mb-1">MCA Form AOC-4 XML</h4>
-            <p className="text-xs text-slate-500 mb-4">
-              Final MCA instance document compliant with official schema references. Direct import or verification in MCA tool.
-            </p>
-          </div>
-          <button
-            onClick={handleDownloadMcaXml}
-            className="w-full py-2 px-3 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg shadow-sm flex items-center justify-center gap-1.5 transition-colors"
-          >
-            <Download className="w-4 h-4" /> Download MCA .XML
-          </button>
-        </div>
-
       </div>
 
       {/* Code / Content Inspector */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="bg-slate-100 px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              onClick={() => setActivePreview('CSV')}
+              className={`px-3 py-1 text-xs font-bold rounded ${
+                activePreview === 'CSV' ? 'bg-[#145ca8] text-white' : 'text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              Structured CSV
+            </button>
+            <button
+              onClick={() => setActivePreview('JSON')}
+              className={`px-3 py-1 text-xs font-bold rounded ${
+                activePreview === 'JSON' ? 'bg-[#145ca8] text-white' : 'text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              Interchange JSON
+            </button>
             <button
               onClick={() => setActivePreview('XAG')}
               className={`px-3 py-1 text-xs font-bold rounded ${
@@ -329,7 +411,7 @@ export const SagGenXbrlTab: React.FC<SagGenXbrlTabProps> = ({ facts, taxonomy })
                 activePreview === 'PS1' ? 'bg-[#145ca8] text-white' : 'text-slate-600 hover:bg-slate-200'
               }`}
             >
-              PowerShell Auto-Writer
+              PowerShell Script
             </button>
             <button
               onClick={() => setActivePreview('VBS')}
@@ -337,15 +419,7 @@ export const SagGenXbrlTab: React.FC<SagGenXbrlTabProps> = ({ facts, taxonomy })
                 activePreview === 'VBS' ? 'bg-[#145ca8] text-white' : 'text-slate-600 hover:bg-slate-200'
               }`}
             >
-              VBScript Auto-Writer
-            </button>
-            <button
-              onClick={() => setActivePreview('AHK')}
-              className={`px-3 py-1 text-xs font-bold rounded ${
-                activePreview === 'AHK' ? 'bg-[#145ca8] text-white' : 'text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              AutoHotkey Robot
+              VBScript
             </button>
           </div>
 
