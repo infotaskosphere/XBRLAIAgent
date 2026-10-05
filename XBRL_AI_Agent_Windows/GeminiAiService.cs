@@ -33,7 +33,7 @@ public sealed class GeminiAiService
         string previousReference,
         string previousFinancialPdf,
         string previousAuditPdf,
-        string currentAuditPdf,
+        IReadOnlyList<string> currentPdfPaths,
         CancellationToken cancellationToken = default)
     {
         if (!IsConfigured)
@@ -45,28 +45,43 @@ public sealed class GeminiAiService
         {
             uploaded.Add(await UploadPdfAsync(previousFinancialPdf, cancellationToken));
             uploaded.Add(await UploadPdfAsync(previousAuditPdf, cancellationToken));
-            uploaded.Add(await UploadPdfAsync(currentAuditPdf, cancellationToken));
+
+            foreach (var currentPdf in currentPdfPaths.Where(File.Exists).Distinct(StringComparer.OrdinalIgnoreCase))
+                uploaded.Add(await UploadPdfAsync(currentPdf, cancellationToken));
+
+            var documentList = new List<string>
+            {
+                "1. PREVIOUS-YEAR FINANCIAL / XBRL PDF — reference evidence only.",
+                "2. PREVIOUS-YEAR AUDIT REPORT — reference evidence only."
+            };
+
+            for (var i = 0; i < currentPdfPaths.Count; i++)
+            {
+                if (File.Exists(currentPdfPaths[i]))
+                    documentList.Add($"{documentList.Count + 1}. CURRENT-YEAR DOCUMENT — primary current-year evidence: {Path.GetFileName(currentPdfPaths[i])}");
+            }
 
             var prompt = """
 You are the mapping assistant inside a professional Gen XBRL preparation application.
 
-You have three PDF documents attached:
-1. PREVIOUS-YEAR FINANCIAL / XBRL PDF — reference evidence only.
-2. PREVIOUS-YEAR AUDIT REPORT — reference evidence only.
-3. CURRENT-YEAR AUDIT REPORT — primary evidence for current-year values.
+The attached PDFs are the source documents listed below.
+
+DOCUMENT ROLES:
+""" + string.Join(Environment.NewLine, documentList) + """
 
 IMPORTANT RULES:
 1. Do not invent financial values.
 2. Treat the previous-year XBRL/XAG text below as the structural reference, not as a source for blindly copying current-year values.
 3. Prefer exact concepts, roles, periods, dimensions and members already present in the previous-year structure.
-4. Use the previous-year financial/XBRL PDF and previous-year audit report to understand prior disclosures, terminology and exceptions.
-5. Current-year audit report is the primary source for current-year financial values.
-6. Use the attached PDF pages directly, including scanned/image-based tables. Do not assume that a PDF has machine-readable text.
+4. Use previous-year documents to understand prior disclosures, terminology and exceptions.
+5. Every CURRENT-YEAR document is evidence for the current year. If current-year documents disagree, report the conflict instead of guessing.
+6. Use the attached PDF pages directly, including scanned/image-based tables.
 7. When reporting a value, identify the document and page where it was found whenever possible.
 8. If evidence is missing or ambiguous, mark the item REVIEW_REQUIRED.
 9. Never resolve conflicting source values by guessing. Report the conflict and the source/page.
 10. Do not claim that a value is confirmed merely because it appeared in the previous year.
 11. Do not generate or alter XBRL XML in this step. Produce a reviewable mapping only.
+12. Do not repeat the entire previous-year reference. Return only useful mappings, changes, new/missing items, conflicts and exceptions.
 
 Return these sections:
 A) CONFIRMED MAPPINGS
@@ -232,7 +247,34 @@ PREVIOUS-YEAR XBRL/XAG STRUCTURAL REFERENCE:
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
 
         if (!response.IsSuccessStatusCode)
+        {
+            if ((int)response.StatusCode == 429)
+            {
+                var retryHint = "";
+                try
+                {
+                    using var quotaJson = JsonDocument.Parse(body);
+                    var details = quotaJson.RootElement.GetProperty("error").GetProperty("details");
+                    foreach (var detail in details.EnumerateArray())
+                    {
+                        if (detail.TryGetProperty("retryDelay", out var retryDelay))
+                        {
+                            retryHint = retryDelay.GetString() ?? "";
+                            break;
+                        }
+                    }
+                }
+                catch { }
+
+                var waitText = string.IsNullOrWhiteSpace(retryHint) ? "a short period" : retryHint;
+                throw new InvalidOperationException(
+                    "Gemini free-tier input quota was exceeded for this mapping request. " +
+                    $"The application has compacted the XBRL reference to keep requests smaller. Please wait {waitText} and run the mapping again. " +
+                    "If the error persists, use the AI Settings connection test first.");
+            }
+
             throw new InvalidOperationException($"Gemini API returned {(int)response.StatusCode}: {body}");
+        }
 
         using var json = JsonDocument.Parse(body);
         return ExtractResponseText(json.RootElement);
