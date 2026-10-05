@@ -315,7 +315,6 @@ public sealed class MainForm : Form
         pick.Click += (_, _) => action();
         row.Controls.Add(box);
         row.Controls.Add(pick);
-        EnableFileDrop(box, GetAllowedExtensions(label));
         EnableFileDrop(row, GetAllowedExtensions(label));
         parent.Controls.Add(row);
     }
@@ -350,7 +349,8 @@ public sealed class MainForm : Form
             return new[] { ".xml", ".xag", ".zip" };
 
         if (label.Contains("AUDIT", StringComparison.OrdinalIgnoreCase) ||
-            label.Contains("FINANCIAL", StringComparison.OrdinalIgnoreCase))
+            label.Contains("FINANCIAL", StringComparison.OrdinalIgnoreCase) ||
+            label.Contains("SUPPORTING", StringComparison.OrdinalIgnoreCase))
             return new[] { ".pdf", ".docx", ".doc", ".txt" };
 
         return Array.Empty<string>();
