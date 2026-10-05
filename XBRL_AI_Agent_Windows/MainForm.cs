@@ -371,11 +371,13 @@ public sealed class MainForm : Form
             progress.Value = 15;
             var doc = XDocument.Load(source, LoadOptions.PreserveWhitespace);
             var elements = doc.Descendants().Where(e => !e.HasElements).ToList();
-            var cur = elements.Count(e => (string?)e.Attribute("Year") is "Cur_I" or "Cur_D");
-            var pre = elements.Count(e => (string?)e.Attribute("Year") is "Pre_I" or "Pre_D");
-            var dimensions = elements.Count(e => e.Attribute("Axis") != null || e.Attribute("Member") != null);
+            var contexts = doc.Descendants().Where(e => e.Name.LocalName == "context").ToList();
+            var currentContexts = contexts.Count(c => IsCurrentXbrlContext(c));
+            var previousContexts = contexts.Count(c => IsPreviousXbrlContext(c));
+            var dimensions = contexts.Count(c => c.Descendants().Any(x =>
+                x.Name.LocalName is "explicitMember" or "typedMember"));
 
-            analysis.Text = $"PREVIOUS-YEAR REFERENCE MAP\r\n=============================\r\n\r\nFile: {Path.GetFileName(source)}\r\nLeaf data elements: {elements.Count:N0}\r\nCurrent-period elements: {cur:N0}\r\nPrevious-period elements: {pre:N0}\r\nDimensional elements: {dimensions:N0}\r\n\r\nREFERENCE ENGINE\r\n✓ Concepts detected\r\n✓ Period structure detected\r\n✓ Dimension/member structure detected\r\n✓ Populated-field structure ready\r\n\r\nNEXT\r\n→ Select the current-year audit report\r\n→ Run AI Mapping\r\n→ Review REVIEW_REQUIRED items\r\n";
+            analysis.Text = $"PREVIOUS-YEAR REFERENCE MAP\r\n=============================\r\n\r\nFile: {Path.GetFileName(source)}\r\nLeaf data elements: {elements.Count:N0}\r\nCurrent-period contexts: {currentContexts:N0}\r\nPrevious-period contexts: {previousContexts:N0}\r\nDimensional contexts: {dimensions:N0}\r\n\r\nREFERENCE ENGINE\r\n✓ Concepts detected\r\n✓ Period structure detected\r\n✓ Dimension/member structure detected\r\n✓ Populated-field structure ready\r\n\r\nNEXT\r\n→ Select the current-year audit report\r\n→ Run AI Mapping\r\n→ Review REVIEW_REQUIRED items\r\n";
             progress.Value = 100;
             status.Text = "Previous-year reference map ready";
             status.ForeColor = Color.DarkGreen;
@@ -476,10 +478,68 @@ public sealed class MainForm : Form
     private string BuildReferenceSummary(string source)
     {
         var doc = XDocument.Load(source, LoadOptions.PreserveWhitespace);
-        var elements = doc.Descendants().Where(e => !e.HasElements).Take(3500).ToList();
+        var contexts = doc.Descendants().Where(e => e.Name.LocalName == "context").ToDictionary(
+            e => (string?)e.Attribute("id") ?? "",
+            e => e);
+
+        var elements = doc.Descendants()
+            .Where(e => !e.HasElements && e.Attribute("contextRef") != null)
+            .Take(5000)
+            .ToList();
+
         var lines = elements.Select(e =>
-            $"{e.Name.LocalName} | Year={(string?)e.Attribute("Year")} | Role={(string?)e.Attribute("Role")} | Axis={(string?)e.Attribute("Axis")} | Member={(string?)e.Attribute("Member")} | Value={e.Value}");
+        {
+            var contextId = (string?)e.Attribute("contextRef") ?? "";
+            contexts.TryGetValue(contextId, out var context);
+            var period = GetContextPeriod(context);
+            var dimensions = context == null
+                ? ""
+                : string.Join(",", context.Descendants()
+                    .Where(x => x.Name.LocalName is "explicitMember" or "typedMember")
+                    .Select(x => $"{(string?)x.Attribute("dimension") ?? x.Name.LocalName}={(x.Value ?? "").Trim()}"));
+
+            return $"{e.Name.LocalName} | Context={contextId} | Period={period} | Dimensions={dimensions} | Value={e.Value}";
+        });
+
         return string.Join(Environment.NewLine, lines);
+    }
+
+    private static bool IsCurrentXbrlContext(XElement context)
+    {
+        var period = context.Descendants().FirstOrDefault(x => x.Name.LocalName is "instant" or "startDate");
+        var end = context.Descendants().FirstOrDefault(x => x.Name.LocalName == "endDate");
+        var instant = context.Descendants().FirstOrDefault(x => x.Name.LocalName == "instant");
+
+        if (instant != null)
+            return string.Equals(instant.Value.Trim(), "2025-03-31", StringComparison.OrdinalIgnoreCase);
+
+        return end != null && string.Equals(end.Value.Trim(), "2025-03-31", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsPreviousXbrlContext(XElement context)
+    {
+        var instant = context.Descendants().FirstOrDefault(x => x.Name.LocalName == "instant");
+        var end = context.Descendants().FirstOrDefault(x => x.Name.LocalName == "endDate");
+
+        if (instant != null)
+            return string.Equals(instant.Value.Trim(), "2024-03-31", StringComparison.OrdinalIgnoreCase);
+
+        return end != null && string.Equals(end.Value.Trim(), "2024-03-31", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string GetContextPeriod(XElement? context)
+    {
+        if (context == null) return "UNKNOWN";
+
+        var instant = context.Descendants().FirstOrDefault(x => x.Name.LocalName == "instant");
+        if (instant != null) return $"Instant={instant.Value.Trim()}";
+
+        var start = context.Descendants().FirstOrDefault(x => x.Name.LocalName == "startDate");
+        var end = context.Descendants().FirstOrDefault(x => x.Name.LocalName == "endDate");
+        if (start != null || end != null)
+            return $"Duration={(start?.Value ?? "").Trim()} to {(end?.Value ?? "").Trim()}";
+
+        return "UNKNOWN";
     }
 
     private void ShowAiSettings()
