@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import { Upload, FileText, Table, FileSpreadsheet, Plus, Trash2, Eye, ShieldAlert, CheckCircle2, ArrowRight } from 'lucide-react';
-import { UploadedDocument, FileRole } from '../types';
+import { UploadedDocument, FileRole, MappedFact, TaxonomyStandard } from '../types';
+import { ExecutiveSummaryPanel } from './ExecutiveSummaryPanel';
 
 interface CurrentYearTabProps {
   documents: UploadedDocument[];
@@ -9,6 +10,10 @@ interface CurrentYearTabProps {
   onPreview: (doc: UploadedDocument) => void;
   onAnalyze: () => void;
   isProcessing: boolean;
+  facts?: MappedFact[];
+  taxonomy?: TaxonomyStandard;
+  onNavigateToMapping?: () => void;
+  onNavigateToSag?: () => void;
 }
 
 export const CurrentYearTab: React.FC<CurrentYearTabProps> = ({
@@ -17,7 +22,11 @@ export const CurrentYearTab: React.FC<CurrentYearTabProps> = ({
   onRemove,
   onPreview,
   onAnalyze,
-  isProcessing
+  isProcessing,
+  facts,
+  taxonomy = 'IND_AS',
+  onNavigateToMapping,
+  onNavigateToSag
 }) => {
   const auditInputRef = useRef<HTMLInputElement>(null);
   const financialInputRef = useRef<HTMLInputElement>(null);
@@ -58,6 +67,16 @@ export const CurrentYearTab: React.FC<CurrentYearTabProps> = ({
   return (
     <div className="space-y-6">
       
+      {/* High-Level Executive Summary Dashboard Panel on Landing Page */}
+      {facts && facts.length > 0 && (
+        <ExecutiveSummaryPanel
+          facts={facts}
+          taxonomy={taxonomy}
+          onNavigateToMapping={onNavigateToMapping || onAnalyze}
+          onNavigateToSag={onNavigateToSag || onAnalyze}
+        />
+      )}
+
       {/* Hero Banner */}
       <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">

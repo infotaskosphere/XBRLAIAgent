@@ -223,6 +223,10 @@ export const App: React.FC = () => {
             onPreview={setPreviewDoc}
             onAnalyze={handleRunMapping}
             isProcessing={isProcessing}
+            facts={facts}
+            taxonomy={taxonomy}
+            onNavigateToMapping={() => setActiveTab('MAPPING')}
+            onNavigateToSag={() => setActiveTab('SAG')}
           />
         )}
 
