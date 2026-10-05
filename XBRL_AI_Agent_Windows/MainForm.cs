@@ -37,7 +37,7 @@ public sealed class MainForm : Form
         Text = "XBRL AI — Intelligent Gen XBRL Automation";
         Width = 1280;
         Height = 820;
-        MinimumSize = new Size(1050, 700);
+        MinimumSize = new Size(900, 650);
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = Surface;
         Font = new Font("Segoe UI", 9.5f);
@@ -46,6 +46,7 @@ public sealed class MainForm : Form
         BuildShell();
         BuildTabs();
         UpdateAiStatus();
+        Resize += (_, _) => ApplyResponsiveLayout();
     }
 
     private void BuildShell()
@@ -92,6 +93,24 @@ public sealed class MainForm : Form
         header.Controls.Add(settingsButton);
 
         Controls.Add(header);
+    }
+
+    private void ApplyResponsiveLayout()
+    {
+        var compact = ClientSize.Width < 1150;
+        tabs.ItemSize = new Size(compact ? 185 : 210, 42);
+
+        foreach (Control control in Controls)
+        {
+            if (control is Panel header && header.Dock == DockStyle.Top)
+            {
+                foreach (Control child in header.Controls)
+                {
+                    if (child is Button button && button.Text.Contains("AI SETTINGS", StringComparison.OrdinalIgnoreCase))
+                        button.Location = new Point(Math.Max(315, header.ClientSize.Width - button.Width - 18), 27);
+                }
+            }
+        }
     }
 
     private void BuildTabs()
