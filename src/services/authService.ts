@@ -1,8 +1,8 @@
 import { UserProfile, UserRole, MongoDbConfig } from '../types';
+import { storageWrapper } from './storageWrapper';
 
-const SESSION_STORAGE_KEY = 'xbrl_auditor_session';
-const REGISTERED_USERS_KEY = 'xbrl_registered_users';
-const MONGO_CONFIG_KEY = 'xbrl_mongodb_config';
+const REGISTERED_USERS_KEY = 'xbrl_auditor_registered_users_v2';
+const MONGO_CONFIG_KEY = 'xbrl_auditor_mongo_config_v2';
 
 interface StoredAccount {
   profile: UserProfile;
@@ -43,51 +43,32 @@ const DEFAULT_DEMO_ACCOUNTS: StoredAccount[] = [
 ];
 
 export const getStoredUsers = (): StoredAccount[] => {
-  try {
-    const raw = localStorage.getItem(REGISTERED_USERS_KEY);
-    if (!raw) {
-      localStorage.setItem(REGISTERED_USERS_KEY, JSON.stringify(DEFAULT_DEMO_ACCOUNTS));
-      return DEFAULT_DEMO_ACCOUNTS;
-    }
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_DEMO_ACCOUNTS;
-  } catch (err) {
-    console.error('Failed to load registered users from computer storage:', err);
+  const users = storageWrapper.get<StoredAccount[]>(REGISTERED_USERS_KEY, []);
+  if (!users || users.length === 0) {
+    storageWrapper.set(REGISTERED_USERS_KEY, DEFAULT_DEMO_ACCOUNTS);
     return DEFAULT_DEMO_ACCOUNTS;
   }
+  return users;
 };
 
 export const getCurrentSession = (): UserProfile | null => {
-  try {
-    const raw = localStorage.getItem(SESSION_STORAGE_KEY);
-    if (!raw) {
-      // Default to initial logged-in state with CA Manthan Desai for an immediate ready-to-audit experience
-      const defaultUser = DEFAULT_DEMO_ACCOUNTS[0].profile;
-      localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(defaultUser));
-      return defaultUser;
-    }
-    return JSON.parse(raw);
-  } catch (err) {
-    console.error('Failed to read session from computer storage:', err);
-    return null;
+  const session = storageWrapper.getAuditorSession();
+  if (session) {
+    return session;
   }
+
+  // Initial boot: seed default persistent session with CA Manthan Desai so user is logged in immediately
+  const defaultUser = DEFAULT_DEMO_ACCOUNTS[0].profile;
+  storageWrapper.saveAuditorSession(defaultUser, true);
+  return defaultUser;
 };
 
-export const saveSession = (user: UserProfile, remember: boolean = true) => {
-  try {
-    const sessionData = { ...user, rememberMe: remember };
-    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(sessionData));
-  } catch (err) {
-    console.error('Failed to save session to computer storage:', err);
-  }
+export const saveSession = (user: UserProfile, remember: boolean = true): void => {
+  storageWrapper.saveAuditorSession(user, remember);
 };
 
-export const clearSession = () => {
-  try {
-    localStorage.removeItem(SESSION_STORAGE_KEY);
-  } catch (err) {
-    console.error('Failed to clear session from computer storage:', err);
-  }
+export const clearSession = (): void => {
+  storageWrapper.clearAuditorSession();
 };
 
 export const authenticateUser = (
@@ -153,24 +134,13 @@ export const registerUser = (
   };
 
   const updatedList = [...users, newAccount];
-  try {
-    localStorage.setItem(REGISTERED_USERS_KEY, JSON.stringify(updatedList));
-    saveSession(newProfile, remember);
-    return { success: true, user: newProfile };
-  } catch (err) {
-    return { success: false, error: 'Could not write new profile to local computer storage.' };
-  }
+  storageWrapper.set(REGISTERED_USERS_KEY, updatedList);
+  saveSession(newProfile, remember);
+  return { success: true, user: newProfile };
 };
 
 // MongoDB Local Connection Configuration
 export const getMongoDbConfig = (): MongoDbConfig => {
-  try {
-    const raw = localStorage.getItem(MONGO_CONFIG_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch (err) {
-    console.error('Error reading MongoDB config:', err);
-  }
-
   const defaultConfig: MongoDbConfig = {
     connectionUri: 'mongodb://localhost:27017',
     databaseName: 'xbrl_auditor_db',
@@ -180,13 +150,10 @@ export const getMongoDbConfig = (): MongoDbConfig => {
     isConnected: true,
     lastTestedAt: new Date().toISOString()
   };
-  return defaultConfig;
+
+  return storageWrapper.get<MongoDbConfig>(MONGO_CONFIG_KEY, defaultConfig);
 };
 
 export const saveMongoDbConfig = (config: MongoDbConfig) => {
-  try {
-    localStorage.setItem(MONGO_CONFIG_KEY, JSON.stringify(config));
-  } catch (err) {
-    console.error('Error writing MongoDB config:', err);
-  }
+  storageWrapper.set(MONGO_CONFIG_KEY, config);
 };

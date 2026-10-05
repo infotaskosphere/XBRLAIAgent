@@ -12,11 +12,19 @@ import { TaxonomyStandard, UploadedDocument, FileRole, MappedFact, AiSettings, U
 import { parseUploadedFile } from './services/documentParser';
 import { mapDocumentsToTaxonomy, generateInitialFacts } from './services/xbrlMappingEngine';
 import { getCurrentSession, clearSession } from './services/authService';
+import { storageWrapper } from './services/storageWrapper';
 import { CheckCircle2, AlertCircle, Info, Sparkles } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => getCurrentSession());
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = storageWrapper.onSessionChange((user) => {
+      setCurrentUser(user);
+    });
+    return unsubscribe;
+  }, []);
   const [activeTab, setActiveTab] = useState<'CURRENT' | 'PREVIOUS' | 'MAPPING' | 'SAG' | 'LIBRARY'>('CURRENT');
   const [taxonomy, setTaxonomy] = useState<TaxonomyStandard>('IND_AS');
   
