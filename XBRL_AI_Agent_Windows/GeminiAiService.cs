@@ -209,41 +209,53 @@ PREVIOUS-YEAR XBRL/XAG STRUCTURAL REFERENCE:
         IReadOnlyList<(string Name, string Uri)> files,
         CancellationToken cancellationToken)
     {
-        var parts = new List<object> { new { text = prompt } };
-
-        foreach (var file in files)
+        // Use Google's current Interactions API for multimodal document input.
+        // This avoids the legacy generateContent file_data path that can return
+        // 400 INVALID_ARGUMENT even when the uploaded Gemini File is ACTIVE.
+        var input = new List<object>
         {
-            parts.Add(new
+            new
             {
-                file_data = new
-                {
-                    mime_type = "application/pdf",
-                    file_uri = file.Uri
-                }
-            });
-        }
-
-        var url = $"https://generativelanguage.googleapis.com/v1beta/models/{Uri.EscapeDataString(settings.GeminiModel)}:generateContent?key={Uri.EscapeDataString(settings.GeminiApiKey)}";
-
-        var payload = new
-        {
-            contents = new[]
-            {
-                new
-                {
-                    role = "user",
-                    parts = parts.ToArray()
-                }
-            },
-            generationConfig = new
-            {
-                temperature = 0.1,
-                maxOutputTokens = 16000
+                type = "text",
+                text = prompt
             }
         };
 
-        using var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-        using var response = await Http.PostAsync(url, content, cancellationToken);
+        foreach (var file in files)
+        {
+            input.Add(new
+            {
+                type = "document",
+                uri = file.Uri,
+                mime_type = "application/pdf"
+            });
+        }
+
+        var url = "https://generativelanguage.googleapis.com/v1beta/interactions";
+
+        var payload = new
+        {
+            model = settings.GeminiModel,
+            input = input.ToArray(),
+            generation_config = new
+            {
+                temperature = 0.1,
+                max_output_tokens = 16000
+            }
+        };
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, url);
+        request.Headers.TryAddWithoutValidation("x-goog-api-key", settings.GeminiApiKey);
+        request.Content = new StringContent(
+            JsonSerializer.Serialize(payload),
+            Encoding.UTF8,
+            "application/json");
+
+        using var response = await Http.SendAsync(
+            request,
+            HttpCompletionOption.ResponseContentRead,
+            cancellationToken);
+
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
 
         if (!response.IsSuccessStatusCode)
@@ -254,30 +266,77 @@ PREVIOUS-YEAR XBRL/XAG STRUCTURAL REFERENCE:
                 try
                 {
                     using var quotaJson = JsonDocument.Parse(body);
-                    var details = quotaJson.RootElement.GetProperty("error").GetProperty("details");
-                    foreach (var detail in details.EnumerateArray())
+                    if (quotaJson.RootElement.TryGetProperty("error", out var error) &&
+                        error.TryGetProperty("details", out var details))
                     {
-                        if (detail.TryGetProperty("retryDelay", out var retryDelay))
+                        foreach (var detail in details.EnumerateArray())
                         {
-                            retryHint = retryDelay.GetString() ?? "";
-                            break;
+                            if (detail.TryGetProperty("retryDelay", out var retryDelay))
+                            {
+                                retryHint = retryDelay.GetString() ?? "";
+                                break;
+                            }
                         }
                     }
                 }
                 catch { }
 
-                var waitText = string.IsNullOrWhiteSpace(retryHint) ? "a short period" : retryHint;
+                var waitText = string.IsNullOrWhiteSpace(retryHint)
+                    ? "a short period"
+                    : retryHint;
+
                 throw new InvalidOperationException(
                     "Gemini free-tier input quota was exceeded for this mapping request. " +
                     $"The application has compacted the XBRL reference to keep requests smaller. Please wait {waitText} and run the mapping again. " +
                     "If the error persists, use the AI Settings connection test first.");
             }
 
-            throw new InvalidOperationException($"Gemini API returned {(int)response.StatusCode}: {body}");
+            throw new InvalidOperationException(
+                $"Gemini Interactions API returned {(int)response.StatusCode}: {body}");
         }
 
         using var json = JsonDocument.Parse(body);
-        return ExtractResponseText(json.RootElement);
+        return ExtractInteractionText(json.RootElement);
+    }
+
+    private static string ExtractInteractionText(JsonElement root)
+    {
+        if (root.TryGetProperty("output_text", out var outputText) &&
+            outputText.ValueKind == JsonValueKind.String)
+        {
+            return outputText.GetString() ?? "";
+        }
+
+        var builder = new StringBuilder();
+
+        if (root.TryGetProperty("steps", out var steps) &&
+            steps.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var step in steps.EnumerateArray())
+            {
+                if (!step.TryGetProperty("content", out var content) ||
+                    content.ValueKind != JsonValueKind.Array)
+                    continue;
+
+                foreach (var item in content.EnumerateArray())
+                {
+                    if (item.TryGetProperty("type", out var type) &&
+                        string.Equals(type.GetString(), "text", StringComparison.OrdinalIgnoreCase) &&
+                        item.TryGetProperty("text", out var text) &&
+                        text.ValueKind == JsonValueKind.String)
+                    {
+                        builder.Append(text.GetString());
+                    }
+                }
+            }
+        }
+
+        var result = builder.ToString();
+        if (string.IsNullOrWhiteSpace(result))
+            throw new InvalidOperationException(
+                "Gemini completed the interaction but returned no text mapping.");
+
+        return result;
     }
 
     private async Task DeleteFileAsync(string name, CancellationToken cancellationToken)
