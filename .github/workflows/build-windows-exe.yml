@@ -39,14 +39,15 @@ jobs:
       - name: Verify EXE
         shell: pwsh
         run: |
-          $exe = Join-Path $env:GITHUB_WORKSPACE 'XBRL_AI_Agent_WindowspublishXBRLAIAgent.exe'
+          $exe = Join-Path (Join-Path $env:GITHUB_WORKSPACE 'XBRL_AI_Agent_Windows') 'publish\XBRLAIAgent.exe'
           if (!(Test-Path $exe)) { throw "EXE was not created: $exe" }
           Write-Host "Created: $exe"
           Write-Host "Size: $((Get-Item $exe).Length) bytes"
 
       - name: Package release ZIP
         shell: pwsh
-        run: Compress-Archive -Path 'publishXBRLAIAgent.exe' -DestinationPath 'XBRL-AI-Agent-Windows-x64.zip' -Force
+        run: |
+          Compress-Archive -Path 'publish\XBRLAIAgent.exe' -DestinationPath 'XBRL-AI-Agent-Windows-x64.zip' -Force
 
       - name: Upload EXE artifact
         uses: actions/upload-artifact@v4
