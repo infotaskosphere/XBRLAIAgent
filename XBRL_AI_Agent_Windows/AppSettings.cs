@@ -9,7 +9,7 @@ public sealed class AppSettings
     public string AiProvider { get; set; } = "Google Gemini";
 
     public string GeminiApiKey { get; set; } = "";
-    public string GeminiModel { get; set; } = "gemini-2.5-flash";
+    public string GeminiModel { get; set; } = "gemini-3.8-flash";
 
     public string OpenAiApiKey { get; set; } = "";
     public string OpenAiModel { get; set; } = "gpt-4.1-mini";
@@ -41,7 +41,10 @@ public sealed class AppSettings
         try
         {
             if (!File.Exists(FilePath)) return new AppSettings();
-            return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(FilePath)) ?? new AppSettings();
+            var loaded = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(FilePath)) ?? new AppSettings();
+            if (string.IsNullOrWhiteSpace(loaded.GeminiModel) || loaded.GeminiModel.StartsWith("gemini-2.5-flash", StringComparison.OrdinalIgnoreCase))
+                loaded.GeminiModel = "gemini-3.8-flash";
+            return loaded;
         }
         catch
         {
