@@ -14,7 +14,7 @@ public sealed class MainForm : Form
     private readonly TabControl tabs = new();
     private readonly TextBox previousXml = new();
     private readonly TextBox previousPdf = new();
-    private readonly TextBox previousSagData = new();
+    private readonly TextBox previousAuditReport = new();
     private readonly TextBox currentPdf = new();
     private readonly Label status = new();
     private readonly TextBox analysis = new();
@@ -154,9 +154,9 @@ public sealed class MainForm : Form
         AddHero(panel, "Previous-year reference", "Teach the agent the exact XBRL structure, concepts, roles, dimensions and populated areas used last year.");
 
         var card = Card(960, 250);
-        AddFileRow(card, "XBRL XML", previousXml, PickXml, 0);
-        AddFileRow(card, "AUDIT REPORT PDF", previousPdf, PickPreviousPdf, 1);
-        AddFileRow(card, "SAG / XAG / ZIP", previousSagData, PickSagData, 2);
+        AddFileRow(card, "PREVIOUS YEAR XBRL / XML", previousXml, PickXml, 0);
+        AddFileRow(card, "PREVIOUS YEAR FINANCIAL / XBRL PDF", previousPdf, PickPreviousPdf, 1);
+        AddFileRow(card, "PREVIOUS YEAR AUDIT REPORT", previousAuditReport, PickPreviousAuditReport, 2);
         panel.Controls.Add(card);
 
         var build = PrimaryButton("BUILD REFERENCE MAP", 220);
@@ -164,7 +164,7 @@ public sealed class MainForm : Form
         build.Click += (_, _) => AnalyzePreviousYear();
         panel.Controls.Add(build);
 
-        var hint = InfoCard("Recommended", "For the highest accuracy, provide all three previous-year files: XBRL XML + audit report + SAG/XAG export.", 680);
+        var hint = InfoCard("Simple workflow", "These are the only four primary documents you need. Supporting documents can be added later without changing this main workflow.", 680);
         hint.Location = new Point(265, 385);
         panel.Controls.Add(hint);
 
@@ -207,9 +207,6 @@ public sealed class MainForm : Form
         analysis.Text = "READY\r\n\r\n1. Build the previous-year reference map.\r\n2. Select the current-year audit report.\r\n3. Run AI mapping.\r\n4. Review exceptions before Gen XBRL automation.\r\n\r\nAI SAFETY\r\n• Previous-year values are not copied blindly.\r\n• Ambiguous mappings are marked REVIEW_REQUIRED.\r\n• Final write/import is kept behind validation.\r\n";
         panel.Controls.Add(analysis);
 
-        var outputCard = Card(960, 470);
-        outputCard.Location = new Point(25, 178);
-        outputCard.Controls.Add(analysis);
         page.Controls.Add(panel);
 
         progress.Dock = DockStyle.Bottom;
@@ -330,25 +327,23 @@ public sealed class MainForm : Form
 
     private void PickPreviousPdf()
     {
-        using var d = new OpenFileDialog { Title = "Select Previous Year Audit Report PDF", Filter = "PDF files (*.pdf)|*.pdf|All files (*.*)|*.*" };
+        using var d = new OpenFileDialog { Title = "Select Previous Year Financial / XBRL PDF", Filter = "PDF files (*.pdf)|*.pdf|All files (*.*)|*.*" };
         if (d.ShowDialog() == DialogResult.OK) previousPdf.Text = d.FileName;
     }
 
-    private void PickSagData()
+    private void PickPreviousAuditReport()
     {
-        using var d = new OpenFileDialog { Title = "Select Previous Year SAG Data", Filter = "SAG packages (*.zip;*.xag;*.gbt)|*.zip;*.xag;*.gbt|All files (*.*)|*.*" };
-        if (d.ShowDialog() == DialogResult.OK) previousSagData.Text = d.FileName;
+        using var d = new OpenFileDialog { Title = "Select Previous Year Audit Report", Filter = "PDF, Word and text files (*.pdf;*.docx;*.doc;*.txt)|*.pdf;*.docx;*.doc;*.txt|All files (*.*)|*.*" };
+        if (d.ShowDialog() == DialogResult.OK) previousAuditReport.Text = d.FileName;
     }
 
     private void AnalyzePreviousYear()
     {
-        var source = File.Exists(previousSagData.Text) && Path.GetExtension(previousSagData.Text).Equals(".xag", StringComparison.OrdinalIgnoreCase)
-            ? previousSagData.Text
-            : previousXml.Text;
+        var source = previousXml.Text;
 
         if (string.IsNullOrWhiteSpace(source) || !File.Exists(source))
         {
-            MessageBox.Show("Select the previous-year XBRL XML or an XAG file first.", "Input required", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show("Select the previous-year XBRL/XML first.", "Input required", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
 
@@ -414,13 +409,16 @@ public sealed class MainForm : Form
             return;
         }
 
-        var source = File.Exists(previousSagData.Text) && Path.GetExtension(previousSagData.Text).Equals(".xag", StringComparison.OrdinalIgnoreCase)
-            ? previousSagData.Text
-            : previousXml.Text;
+        var source = previousXml.Text;
 
         if (!File.Exists(source))
         {
-            MessageBox.Show("Select the previous-year XBRL XML or XAG first.", "Input required", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show("Select the previous-year XBRL/XML first.", "Input required", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+        if (!File.Exists(previousPdf.Text) || !File.Exists(previousAuditReport.Text))
+        {
+            MessageBox.Show("Select the previous-year financial/XBRL PDF and previous-year audit report as well.", "Input required", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
 
@@ -429,12 +427,16 @@ public sealed class MainForm : Form
             progress.Value = 10;
             var reference = await Task.Run(() => BuildReferenceSummary(source));
             progress.Value = 35;
-            var currentText = await Task.Run(() => DocumentService.ExtractPdfText(currentPdf.Text, 120000));
+            var previousFinancialText = await Task.Run(() => DocumentService.ExtractPdfText(previousPdf.Text, 80000));
+            progress.Value = 45;
+            var previousAuditText = await Task.Run(() => DocumentService.ExtractPdfText(previousAuditReport.Text, 60000));
             progress.Value = 55;
+            var currentText = await Task.Run(() => DocumentService.ExtractPdfText(currentPdf.Text, 120000));
+            progress.Value = 65;
             status.Text = "AI is comparing current evidence with the previous structure...";
             status.ForeColor = Blue;
 
-            var result = await ai.GenerateMappingAsync(reference, currentText);
+            var result = await ai.GenerateMappingAsync(reference, previousFinancialText, previousAuditText, currentText);
             progress.Value = 100;
             analysis.Text = result;
             status.Text = "AI mapping completed — review before any write/import";
