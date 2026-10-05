@@ -1,7 +1,14 @@
 import React, { useState } from 'react';
-import { Download, FileSpreadsheet, FileCode, Terminal, CheckCircle2, Copy, Eye, Database, Sparkles, ExternalLink, ShieldCheck } from 'lucide-react';
+import { Download, FileSpreadsheet, FileCode, Terminal, CheckCircle2, Copy, Eye, Database, Sparkles, ExternalLink, ShieldCheck, PlayCircle, Zap } from 'lucide-react';
 import { MappedFact, SagExportOptions, TaxonomyStandard } from '../types';
-import { generateSagXagContent, generateSagExcelWorkbook, generateMcaXbrlInstance, generateSagWindowsScript } from '../services/sagGenXbrlGenerator';
+import { 
+  generateSagXagContent, 
+  generateSagExcelWorkbook, 
+  generateMcaXbrlInstance, 
+  generateSagWindowsScript,
+  generatePowerShellScript,
+  generateAutoHotkeyScript
+} from '../services/sagGenXbrlGenerator';
 
 interface SagGenXbrlTabProps {
   facts: MappedFact[];
@@ -21,17 +28,18 @@ export const SagGenXbrlTab: React.FC<SagGenXbrlTabProps> = ({ facts, taxonomy })
     natureOfReport: 'Standalone'
   });
 
-  const [activePreview, setActivePreview] = useState<'XAG' | 'MCA_XML' | 'SCRIPT'>('XAG');
+  const [activePreview, setActivePreview] = useState<'XAG' | 'MCA_XML' | 'VBS' | 'PS1' | 'AHK'>('XAG');
   const [copied, setCopied] = useState(false);
 
-  // Sync taxonomy if parent changes
   React.useEffect(() => {
     setOptions(prev => ({ ...prev, taxonomy }));
   }, [taxonomy]);
 
   const xagContent = React.useMemo(() => generateSagXagContent(facts, options), [facts, options]);
   const mcaXmlContent = React.useMemo(() => generateMcaXbrlInstance(facts, options), [facts, options]);
-  const scriptContent = React.useMemo(() => generateSagWindowsScript(options), [options]);
+  const vbsContent = React.useMemo(() => generateSagWindowsScript(options), [options]);
+  const ps1Content = React.useMemo(() => generatePowerShellScript(options), [options]);
+  const ahkContent = React.useMemo(() => generateAutoHotkeyScript(options), [options]);
 
   const downloadFile = (filename: string, content: string | Uint8Array, mimeType: string) => {
     const blob = new Blob([content as any], { type: mimeType });
@@ -58,14 +66,33 @@ export const SagGenXbrlTab: React.FC<SagGenXbrlTabProps> = ({ facts, taxonomy })
     downloadFile(`MCA_AOC4_XBRL_${options.companyCin}.xml`, mcaXmlContent, 'application/xml');
   };
 
-  const handleDownloadScript = () => {
-    downloadFile(`sag_autowrite_${options.companyCin}.vbs`, scriptContent, 'text/plain');
+  const handleDownloadVbs = () => {
+    downloadFile(`sag_autowrite_${options.companyCin}.vbs`, vbsContent, 'text/plain');
+  };
+
+  const handleDownloadPs1 = () => {
+    downloadFile(`sag_autowrite_${options.companyCin}.ps1`, ps1Content, 'text/plain');
+  };
+
+  const handleDownloadAhk = () => {
+    downloadFile(`sag_robotic_autofill_${options.companyCin}.ahk`, ahkContent, 'text/plain');
   };
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const getPreviewText = () => {
+    switch (activePreview) {
+      case 'XAG': return xagContent;
+      case 'MCA_XML': return mcaXmlContent;
+      case 'VBS': return vbsContent;
+      case 'PS1': return ps1Content;
+      case 'AHK': return ahkContent;
+      default: return xagContent;
+    }
   };
 
   return (
@@ -78,9 +105,46 @@ export const SagGenXbrlTab: React.FC<SagGenXbrlTabProps> = ({ facts, taxonomy })
           <h2 className="text-xl font-bold text-[#071b36]">SAG Gen XBRL Automated Writer & Data Bridge</h2>
         </div>
         <p className="text-sm text-slate-600 max-w-4xl">
-          Instantly generate and write fully structured data into <span className="font-semibold text-slate-800">SAG Infotech Gen XBRL</span> without manual re-keying. 
-          Choose between native SAG XAG export, multi-sheet SAG Excel templates, official MCA XML instances, or direct Windows automation scripts.
+          <span className="font-bold text-emerald-700">Yes!</span> Once generated, this software automatically populates data in SAG Gen XBRL without any manual re-typing. 
+          It supports three autonomous pipelines: direct SAG Excel import, native SAG XAG direct injection, or one-click Windows automation scripts.
         </p>
+      </div>
+
+      {/* Answer Spotlight Card: How Auto-Fill Works in SAG Gen XBRL */}
+      <div className="bg-gradient-to-r from-[#071b36] to-[#0d2f5a] text-white rounded-xl p-6 shadow-md border border-[#1e4677]">
+        <div className="flex items-start gap-3">
+          <Zap className="w-6 h-6 text-[#12cbe6] flex-shrink-0 mt-0.5" />
+          <div className="space-y-2">
+            <h3 className="font-bold text-base text-white">How This Software Auto-Fills Data into SAG Gen XBRL:</h3>
+            <p className="text-xs text-slate-200 leading-relaxed">
+              SAG Gen XBRL is a desktop Windows application. It does not require you to manually type figures one by one. 
+              Our software bridges your audit report & financials directly into Gen XBRL through three verified methods:
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
+              <div className="bg-[#0f284c] p-3 rounded-lg border border-[#234b7d]">
+                <strong className="text-xs font-bold text-[#12cbe6] block mb-1">1. Direct Excel Auto-Fill (Recommended)</strong>
+                <p className="text-[11px] text-slate-300">
+                  Gen XBRL has a built-in <span className="text-white font-semibold">"Import from Excel"</span> engine. 
+                  Download our pre-mapped <code className="text-amber-300">.xlsx</code> package. Click "Import" in Gen XBRL and 100% of all Balance Sheet, P&L, Notes, and CARO fields fill automatically.
+                </p>
+              </div>
+
+              <div className="bg-[#0f284c] p-3 rounded-lg border border-[#234b7d]">
+                <strong className="text-xs font-bold text-[#12cbe6] block mb-1">2. SAG .XAG Native Injection</strong>
+                <p className="text-[11px] text-slate-300">
+                  Download our <code className="text-amber-300">.xag</code> file. In Gen XBRL, select <span className="text-white font-semibold">"Import from XAG"</span> or use our script to stage it into <code className="text-slate-300">%APPDATA%\SAG Infotech\GenXBRL\ImportQueue</code>. It loads the entire company instantaneously.
+                </p>
+              </div>
+
+              <div className="bg-[#0f284c] p-3 rounded-lg border border-[#234b7d]">
+                <strong className="text-xs font-bold text-[#12cbe6] block mb-1">3. Windows Auto-Write Script (.vbs/.ps1/.ahk)</strong>
+                <p className="text-[11px] text-slate-300">
+                  Double-click the generated <code className="text-amber-300">.vbs</code> or <code className="text-amber-300">.ps1</code> script on Windows. It finds <code className="text-slate-300">GenXBRL.exe</code>, stages the data payload, and opens Gen XBRL with the client already loaded.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Company Filing Profile */}
@@ -136,18 +200,43 @@ export const SagGenXbrlTab: React.FC<SagGenXbrlTabProps> = ({ facts, taxonomy })
         </div>
       </div>
 
-      {/* 4 Primary 1-Click Export Cards */}
+      {/* Auto-Fill Download Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         
-        {/* Card 1: SAG XAG Export */}
-        <div className="bg-gradient-to-b from-white to-blue-50/30 p-5 rounded-xl border border-blue-200 shadow-sm flex flex-col justify-between">
+        {/* Card 1: SAG Excel Auto-Fill Package */}
+        <div className="bg-gradient-to-b from-white to-emerald-50/40 p-5 rounded-xl border border-emerald-200 shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="w-10 h-10 bg-emerald-100 text-emerald-700 rounded-lg flex items-center justify-center mb-3">
+              <FileSpreadsheet className="w-5 h-5" />
+            </div>
+            <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 inline-block mb-1">
+              Primary Auto-Fill
+            </span>
+            <h4 className="font-bold text-sm text-[#071b36] mb-1">SAG Gen XBRL Excel Import</h4>
+            <p className="text-xs text-slate-500 mb-4">
+              Pre-mapped multi-sheet Excel file. In SAG Gen XBRL, click "Import from Excel" to auto-populate all schedules instantly.
+            </p>
+          </div>
+          <button
+            onClick={handleDownloadExcel}
+            className="w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm flex items-center justify-center gap-1.5 transition-colors"
+          >
+            <Download className="w-4 h-4" /> Download .XLSX Auto-Fill
+          </button>
+        </div>
+
+        {/* Card 2: Native SAG .XAG File */}
+        <div className="bg-gradient-to-b from-white to-blue-50/40 p-5 rounded-xl border border-blue-200 shadow-sm flex flex-col justify-between">
           <div>
             <div className="w-10 h-10 bg-blue-100 text-[#145ca8] rounded-lg flex items-center justify-center mb-3">
               <FileCode className="w-5 h-5" />
             </div>
+            <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-blue-100 text-[#145ca8] inline-block mb-1">
+              SAG Native Format
+            </span>
             <h4 className="font-bold text-sm text-[#071b36] mb-1">SAG Gen XBRL .XAG</h4>
             <p className="text-xs text-slate-500 mb-4">
-              Native format recognized by SAG Gen XBRL. Direct import preserves prior year context tags and member mappings.
+              Direct SAG backup/import format. Loads company master, Balance Sheet, P&L, and CARO into Gen XBRL with 1 click.
             </p>
           </div>
           <button
@@ -158,34 +247,50 @@ export const SagGenXbrlTab: React.FC<SagGenXbrlTabProps> = ({ facts, taxonomy })
           </button>
         </div>
 
-        {/* Card 2: SAG Multi-Sheet Excel */}
-        <div className="bg-gradient-to-b from-white to-emerald-50/30 p-5 rounded-xl border border-emerald-200 shadow-sm flex flex-col justify-between">
+        {/* Card 3: Windows Auto-Writer Script (.vbs / .ps1) */}
+        <div className="bg-gradient-to-b from-white to-purple-50/40 p-5 rounded-xl border border-purple-200 shadow-sm flex flex-col justify-between">
           <div>
-            <div className="w-10 h-10 bg-emerald-100 text-emerald-700 rounded-lg flex items-center justify-center mb-3">
-              <FileSpreadsheet className="w-5 h-5" />
+            <div className="w-10 h-10 bg-purple-100 text-purple-700 rounded-lg flex items-center justify-center mb-3">
+              <Terminal className="w-5 h-5" />
             </div>
-            <h4 className="font-bold text-sm text-[#071b36] mb-1">SAG Excel Workbook</h4>
+            <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-purple-100 text-purple-800 inline-block mb-1">
+              One-Click Runner
+            </span>
+            <h4 className="font-bold text-sm text-[#071b36] mb-1">Windows Auto-Writer Script</h4>
             <p className="text-xs text-slate-500 mb-4">
-              Multi-sheet Excel workbook (Gen_Info, Balance_Sheet, Profit_Loss, Notes, CARO) pre-formatted for SAG Excel Import.
+              VBScript and PowerShell scripts that locate GenXBRL.exe on Windows and stage data into the queue automatically.
             </p>
           </div>
-          <button
-            onClick={handleDownloadExcel}
-            className="w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm flex items-center justify-center gap-1.5 transition-colors"
-          >
-            <Download className="w-4 h-4" /> Download .XLSX Package
-          </button>
+          <div className="flex gap-1.5">
+            <button
+              onClick={handleDownloadVbs}
+              className="flex-1 py-2 px-2 bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs rounded-lg shadow-sm flex items-center justify-center gap-1 transition-colors"
+              title="Download VBScript"
+            >
+              <Download className="w-3.5 h-3.5" /> .VBS
+            </button>
+            <button
+              onClick={handleDownloadPs1}
+              className="flex-1 py-2 px-2 bg-purple-900 hover:bg-purple-950 text-white font-bold text-xs rounded-lg shadow-sm flex items-center justify-center gap-1 transition-colors"
+              title="Download PowerShell"
+            >
+              <Download className="w-3.5 h-3.5" /> .PS1
+            </button>
+          </div>
         </div>
 
-        {/* Card 3: MCA XBRL XML Instance */}
-        <div className="bg-gradient-to-b from-white to-amber-50/30 p-5 rounded-xl border border-amber-200 shadow-sm flex flex-col justify-between">
+        {/* Card 4: Official MCA XBRL XML Instance */}
+        <div className="bg-gradient-to-b from-white to-amber-50/40 p-5 rounded-xl border border-amber-200 shadow-sm flex flex-col justify-between">
           <div>
             <div className="w-10 h-10 bg-amber-100 text-amber-700 rounded-lg flex items-center justify-center mb-3">
               <FileCode className="w-5 h-5" />
             </div>
-            <h4 className="font-bold text-sm text-[#071b36] mb-1">MCA Official Instance (.xml)</h4>
+            <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-800 inline-block mb-1">
+              Official MCA Format
+            </span>
+            <h4 className="font-bold text-sm text-[#071b36] mb-1">MCA Form AOC-4 XML</h4>
             <p className="text-xs text-slate-500 mb-4">
-              Fully compliant instance document with official MCA taxonomy schemaRef, namespaces, units, and tags.
+              Final MCA instance document compliant with official schema references. Direct import or verification in MCA tool.
             </p>
           </div>
           <button
@@ -196,38 +301,19 @@ export const SagGenXbrlTab: React.FC<SagGenXbrlTabProps> = ({ facts, taxonomy })
           </button>
         </div>
 
-        {/* Card 4: Windows Auto-Write Script */}
-        <div className="bg-gradient-to-b from-white to-purple-50/30 p-5 rounded-xl border border-purple-200 shadow-sm flex flex-col justify-between">
-          <div>
-            <div className="w-10 h-10 bg-purple-100 text-purple-700 rounded-lg flex items-center justify-center mb-3">
-              <Terminal className="w-5 h-5" />
-            </div>
-            <h4 className="font-bold text-sm text-[#071b36] mb-1">SAG Windows Auto-Write</h4>
-            <p className="text-xs text-slate-500 mb-4">
-              Automates opening SAG Gen XBRL on Windows, staging the file into Gen XBRL import queue and initiating import.
-            </p>
-          </div>
-          <button
-            onClick={handleDownloadScript}
-            className="w-full py-2 px-3 bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs rounded-lg shadow-sm flex items-center justify-center gap-1.5 transition-colors"
-          >
-            <Download className="w-4 h-4" /> Download .VBS Script
-          </button>
-        </div>
-
       </div>
 
       {/* Code / Content Inspector */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="bg-slate-100 px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
             <button
               onClick={() => setActivePreview('XAG')}
               className={`px-3 py-1 text-xs font-bold rounded ${
                 activePreview === 'XAG' ? 'bg-[#145ca8] text-white' : 'text-slate-600 hover:bg-slate-200'
               }`}
             >
-              SAG .XAG Preview
+              SAG .XAG Data
             </button>
             <button
               onClick={() => setActivePreview('MCA_XML')}
@@ -238,21 +324,34 @@ export const SagGenXbrlTab: React.FC<SagGenXbrlTabProps> = ({ facts, taxonomy })
               MCA Instance XML
             </button>
             <button
-              onClick={() => setActivePreview('SCRIPT')}
+              onClick={() => setActivePreview('PS1')}
               className={`px-3 py-1 text-xs font-bold rounded ${
-                activePreview === 'SCRIPT' ? 'bg-[#145ca8] text-white' : 'text-slate-600 hover:bg-slate-200'
+                activePreview === 'PS1' ? 'bg-[#145ca8] text-white' : 'text-slate-600 hover:bg-slate-200'
               }`}
             >
-              Windows Automation Script
+              PowerShell Auto-Writer
+            </button>
+            <button
+              onClick={() => setActivePreview('VBS')}
+              className={`px-3 py-1 text-xs font-bold rounded ${
+                activePreview === 'VBS' ? 'bg-[#145ca8] text-white' : 'text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              VBScript Auto-Writer
+            </button>
+            <button
+              onClick={() => setActivePreview('AHK')}
+              className={`px-3 py-1 text-xs font-bold rounded ${
+                activePreview === 'AHK' ? 'bg-[#145ca8] text-white' : 'text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              AutoHotkey Robot
             </button>
           </div>
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => {
-                const text = activePreview === 'XAG' ? xagContent : activePreview === 'MCA_XML' ? mcaXmlContent : scriptContent;
-                copyToClipboard(text);
-              }}
+              onClick={() => copyToClipboard(getPreviewText())}
               className="px-3 py-1 text-xs font-semibold bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded flex items-center gap-1 transition-colors"
             >
               {copied ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
@@ -262,48 +361,8 @@ export const SagGenXbrlTab: React.FC<SagGenXbrlTabProps> = ({ facts, taxonomy })
         </div>
 
         <pre className="p-4 bg-slate-900 text-slate-100 text-xs font-mono overflow-x-auto max-h-96 leading-relaxed">
-          {activePreview === 'XAG' ? xagContent : activePreview === 'MCA_XML' ? mcaXmlContent : scriptContent}
+          {getPreviewText()}
         </pre>
-      </div>
-
-      {/* SAG Gen XBRL Step-by-Step Execution Guide */}
-      <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm">
-        <h3 className="font-bold text-[#071b36] text-base mb-4 flex items-center gap-2">
-          <Database className="w-5 h-5 text-[#145ca8]" />
-          How SAG Gen XBRL Loads this Data (3 Simple Steps)
-        </h3>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-            <div className="w-7 h-7 bg-[#145ca8] text-white rounded-full flex items-center justify-center font-bold text-xs mb-3">
-              1
-            </div>
-            <h4 className="font-bold text-sm text-[#071b36] mb-1">Open Client in SAG Gen XBRL</h4>
-            <p className="text-xs text-slate-600">
-              Launch SAG Gen XBRL on your computer and open company <span className="font-semibold text-slate-800">{options.companyName}</span> ({options.companyCin}).
-            </p>
-          </div>
-
-          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-            <div className="w-7 h-7 bg-[#145ca8] text-white rounded-full flex items-center justify-center font-bold text-xs mb-3">
-              2
-            </div>
-            <h4 className="font-bold text-sm text-[#071b36] mb-1">Import File (XAG or Excel)</h4>
-            <p className="text-xs text-slate-600">
-              Go to <span className="font-semibold text-slate-800">Tools / Import-Export -&gt; Import from Excel / XAG</span>, select the file downloaded above, and click <span className="font-semibold text-slate-800">Transfer Data</span>.
-            </p>
-          </div>
-
-          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-            <div className="w-7 h-7 bg-[#145ca8] text-white rounded-full flex items-center justify-center font-bold text-xs mb-3">
-              3
-            </div>
-            <h4 className="font-bold text-sm text-[#071b36] mb-1">Verify & Validate for MCA</h4>
-            <p className="text-xs text-slate-600">
-              All Balance Sheet, P&L, Notes, and CARO fields are instantly auto-filled. Run SAG Gen XBRL's validator to generate the final Form AOC-4 XBRL package!
-            </p>
-          </div>
-        </div>
       </div>
 
     </div>

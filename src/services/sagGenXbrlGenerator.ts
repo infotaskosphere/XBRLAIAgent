@@ -201,7 +201,7 @@ export function generateMcaXbrlInstance(facts: MappedFact[], options: SagExportO
   return xml;
 }
 
-// 4. Generate Windows Automated SAG Gen XBRL Script (.vbs / .ps1)
+// 4. Generate Windows Automated SAG Gen XBRL Script (.vbs)
 export function generateSagWindowsScript(options: SagExportOptions): string {
   return `' =========================================================================
 ' SAG Gen XBRL Autonomous Auto-Write & Direct Import Script
@@ -260,6 +260,103 @@ End If
 shell.Run Chr(34) & installFound & Chr(34) & " /CIN=${options.companyCin} /IMPORT=" & Chr(34) & scriptDir & "\\SAG_GenXBRL_Import.xag" & Chr(34), 1, False
 
 WScript.Echo "SAG Gen XBRL launched. Data auto-fill sequence initiated."
+`;
+}
+
+// 5. Generate Windows PowerShell Autonomous Script (.ps1)
+export function generatePowerShellScript(options: SagExportOptions): string {
+  return `# =========================================================================
+# SAG Gen XBRL Autonomous Auto-Write & Direct Import PowerShell Script
+# Company CIN: ${options.companyCin} (${options.companyName})
+# =========================================================================
+
+Write-Host "=================================================" -ForegroundColor Cyan
+Write-Host " XBRL AI AGENT -> SAG GEN XBRL AUTO-WRITER " -ForegroundColor Yellow
+Write-Host "=================================================" -ForegroundColor Cyan
+
+$candidatePaths = @(
+  "C:\\Program Files\\SAG Infotech\\GenXBRL\\GenXBRL.exe",
+  "C:\\Program Files (x86)\\SAG Infotech\\GenXBRL\\GenXBRL.exe",
+  "M:\\SAG Infotech\\GenXBRL\\GenXBRL.exe",
+  "D:\\SAG Infotech\\GenXBRL\\GenXBRL.exe"
+)
+
+$sagExe = $null
+foreach ($path in $candidatePaths) {
+  if (Test-Path $path) {
+    $sagExe = $path
+    break
+  }
+}
+
+if (-not $sagExe) {
+  Write-Warning "Could not detect default GenXBRL.exe installation."
+  Write-Host "You can manually import the generated SAG_Import.xlsx or SAG_Import.xag into SAG Gen XBRL."
+  exit 1
+}
+
+Write-Host "[+] Found SAG Gen XBRL at: $sagExe" -ForegroundColor Green
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$xagFile = Join-Path $scriptDir "SAG_GenXBRL_${options.companyCin}.xag"
+$excelFile = Join-Path $scriptDir "SAG_GenXBRL_Import_${options.companyCin}.xlsx"
+
+# Stage in AppData import queue
+$appDataQueue = "$env:APPDATA\\SAG Infotech\\GenXBRL\\ImportQueue"
+if (-not (Test-Path $appDataQueue)) {
+  New-Item -ItemType Directory -Path $appDataQueue -Force | Out-Null
+}
+
+if (Test-Path $xagFile) {
+  Copy-Item -Path $xagFile -Destination (Join-Path $appDataQueue "${options.companyCin}.xag") -Force
+  Write-Host "[+] Staged .xag data into SAG import queue." -ForegroundColor Green
+}
+
+Write-Host "[*] Launching SAG Gen XBRL in auto-fill mode..." -ForegroundColor Cyan
+Start-Process -FilePath $sagExe -ArgumentList ('/CIN=' + '${options.companyCin}' + ' /IMPORT=' + '\"' + $xagFile + '\"')
+
+Write-Host "[+] Auto-fill executed successfully! Please review the auto-populated figures in SAG Gen XBRL." -ForegroundColor Green
+`;
+}
+
+// 6. Generate Robotic GUI AutoHotkey Script (.ahk)
+export function generateAutoHotkeyScript(options: SagExportOptions): string {
+  return `; =========================================================================
+; AutoHotkey Script: Autonomous GUI Auto-Fill for SAG Gen XBRL
+; Automatically focuses Gen XBRL window and navigates/pastes financial facts
+; =========================================================================
+#NoEnv
+SetWorkingDir %A_ScriptDir%
+CoordMode, Mouse, Window
+SetTitleMatchMode, 2
+
+MsgBox, 64, XBRL AI Agent, Preparing to auto-fill SAG Gen XBRL for ${options.companyCin}. Please ensure SAG Gen XBRL is open with your client selected. Click OK to start., 5
+
+IfWinExist, Gen XBRL
+{
+    WinActivate, Gen XBRL
+    WinWaitActive, Gen XBRL, , 3
+    Sleep, 500
+    
+    ; Trigger Import Menu
+    Send, !t ; Alt+T (Tools menu)
+    Sleep, 300
+    Send, i ; Import submenu
+    Sleep, 300
+    Send, {Enter}
+    Sleep, 800
+    
+    ; Send Path to generated Excel or XAG file
+    SendInput, %A_ScriptDir%\\SAG_GenXBRL_Import_${options.companyCin}.xlsx
+    Sleep, 500
+    Send, {Enter}
+    
+    TrayTip, XBRL AI Agent, SAG Gen XBRL auto-fill sequence completed successfully!, 5
+}
+Else
+{
+    MsgBox, 48, SAG Gen XBRL Not Running, Please open SAG Gen XBRL first, then re-run this script to auto-fill.
+}
+Return
 `;
 }
 
