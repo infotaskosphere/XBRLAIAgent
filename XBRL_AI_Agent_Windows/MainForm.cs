@@ -372,8 +372,17 @@ public sealed class MainForm : Form
             var doc = XDocument.Load(source, LoadOptions.PreserveWhitespace);
             var elements = doc.Descendants().Where(e => !e.HasElements).ToList();
             var contexts = doc.Descendants().Where(e => e.Name.LocalName == "context").ToList();
-            var currentContexts = contexts.Count(c => IsCurrentXbrlContext(c));
-            var previousContexts = contexts.Count(c => IsPreviousXbrlContext(c));
+            var contextDates = contexts
+                .Select(GetContextEndDate)
+                .Where(d => d != null)
+                .Select(d => d!.Value)
+                .Distinct()
+                .OrderByDescending(d => d)
+                .ToList();
+            var currentDate = contextDates.ElementAtOrDefault(0);
+            var previousDate = contextDates.ElementAtOrDefault(1);
+            var currentContexts = currentDate == null ? 0 : contexts.Count(c => GetContextEndDate(c) == currentDate);
+            var previousContexts = previousDate == null ? 0 : contexts.Count(c => GetContextEndDate(c) == previousDate);
             var dimensions = contexts.Count(c => c.Descendants().Any(x =>
                 x.Name.LocalName is "explicitMember" or "typedMember"));
 
@@ -504,27 +513,13 @@ public sealed class MainForm : Form
         return string.Join(Environment.NewLine, lines);
     }
 
-    private static bool IsCurrentXbrlContext(XElement context)
-    {
-        var period = context.Descendants().FirstOrDefault(x => x.Name.LocalName is "instant" or "startDate");
-        var end = context.Descendants().FirstOrDefault(x => x.Name.LocalName == "endDate");
-        var instant = context.Descendants().FirstOrDefault(x => x.Name.LocalName == "instant");
-
-        if (instant != null)
-            return string.Equals(instant.Value.Trim(), "2025-03-31", StringComparison.OrdinalIgnoreCase);
-
-        return end != null && string.Equals(end.Value.Trim(), "2025-03-31", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool IsPreviousXbrlContext(XElement context)
+    private static DateTime? GetContextEndDate(XElement context)
     {
         var instant = context.Descendants().FirstOrDefault(x => x.Name.LocalName == "instant");
         var end = context.Descendants().FirstOrDefault(x => x.Name.LocalName == "endDate");
+        var raw = (instant ?? end)?.Value.Trim();
 
-        if (instant != null)
-            return string.Equals(instant.Value.Trim(), "2024-03-31", StringComparison.OrdinalIgnoreCase);
-
-        return end != null && string.Equals(end.Value.Trim(), "2024-03-31", StringComparison.OrdinalIgnoreCase);
+        return DateTime.TryParse(raw, out var date) ? date : null;
     }
 
     private static string GetContextPeriod(XElement? context)
