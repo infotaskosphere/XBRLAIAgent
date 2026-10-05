@@ -26,7 +26,7 @@ public sealed class GeminiAiService
             cancellationToken);
     }
 
-    public async Task<string> GenerateMappingAsync(string previousReference, string currentAuditText, CancellationToken cancellationToken = default)
+    public async Task<string> GenerateMappingAsync(string previousReference, string previousFinancialText, string previousAuditText, string currentAuditText, CancellationToken cancellationToken = default)
     {
         if (!IsConfigured)
             throw new InvalidOperationException("Gemini API key is not configured.");
@@ -38,9 +38,11 @@ IMPORTANT RULES:
 1. Do not invent financial values.
 2. Treat the previous-year XBRL/XAG as the structural reference, not as a source for blindly copying current-year values.
 3. Prefer exact concepts, roles, periods, dimensions and members already present in the previous-year structure.
-4. Current-year audit text is the primary source for current-year financial values.
-5. If evidence is missing or ambiguous, mark the item REVIEW_REQUIRED.
-6. Return concise, structured results that a validation engine can inspect.
+4. Use the previous-year financial/XBRL PDF and previous-year audit report to understand prior disclosures, terminology and exceptions.
+5. Current-year audit text is the primary source for current-year financial values.
+6. If evidence is missing or ambiguous, mark the item REVIEW_REQUIRED.
+7. Never resolve conflicting source values by guessing. Report the conflict and source.
+8. Return concise, structured results that a validation engine can inspect.
 
 Return these sections:
 A) CONFIRMED MAPPINGS
@@ -51,6 +53,12 @@ E) SAFETY NOTES
 
 PREVIOUS-YEAR REFERENCE:
 """ + previousReference + """
+
+PREVIOUS-YEAR FINANCIAL / XBRL PDF TEXT:
+""" + previousFinancialText + """
+
+PREVIOUS-YEAR AUDIT REPORT TEXT:
+""" + previousAuditText + """
 
 CURRENT-YEAR AUDIT REPORT TEXT:
 """ + currentAuditText;
