@@ -19,10 +19,9 @@ public static class DocumentService
 
         try
         {
-            // PdfPig's standard open path is retained for maximum compatibility
-            // with the exact package version shipped in the EXE. Any parser
-            // exception is contained below so one malformed PDF cannot stop
-            // the complete document workflow.
+            // Keep the shipped PdfPig version as the first local parser.
+            // Any malformed/vendor-specific PDF is contained by the catch so
+            // one document cannot stop the complete workflow.
             using var document = PdfDocument.Open(path);
 
             foreach (var page in document.GetPages())
@@ -51,14 +50,11 @@ public static class DocumentService
         }
         catch
         {
-            // A malformed PDF header or damaged PDF structure must not make
-            // the application unusable. Gemini can natively read valid PDFs,
-            // including scanned/image PDFs, so the caller can continue with
-            // the original file even when local text extraction fails.
+            // Scanned PDFs and malformed PDFs can still be sent as the
+            // original document to Gemini, which has native PDF vision.
         }
 
-        return "[LOCAL PDF TEXT EXTRACTION UNAVAILABLE]
-" +
+        return "[LOCAL PDF TEXT EXTRACTION UNAVAILABLE]" + Environment.NewLine +
                "The original PDF is still available to the document/AI reader. " +
                "Use the original PDF for visual and table extraction.";
     }
@@ -76,8 +72,7 @@ public static class DocumentService
             ".txt" or ".csv" or ".xml" or ".xsd" or ".json" or ".md" =>
                 ReadTextFile(path, maxCharacters),
             ".docx" => ExtractDocxText(path, maxCharacters),
-            ".doc" => "[LEGACY .DOC FORMAT]
-" +
+            ".doc" => "[LEGACY .DOC FORMAT]" + Environment.NewLine +
                       "The original document is retained, but direct local text extraction " +
                       "requires a legacy Word parser. Convert it to PDF or DOCX for full extraction.",
             _ => ReadTextFile(path, maxCharacters)
