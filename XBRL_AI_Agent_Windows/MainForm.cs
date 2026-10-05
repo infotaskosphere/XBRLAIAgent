@@ -216,9 +216,10 @@ public sealed class MainForm : Form
         toolbar.Controls.Add(aiSettings);
 
         aiStatus.AutoSize = false;
-        aiStatus.Width = 520;
+        aiStatus.Width = 420;
         aiStatus.Height = 32;
-        aiStatus.Location = new Point(390, 13);
+        aiStatus.Location = new Point(525, 13);
+        aiStatus.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
         aiStatus.Font = new Font("Segoe UI Semibold", 9);
         toolbar.Controls.Add(aiStatus);
         panel.Controls.Add(toolbar);
@@ -359,36 +360,56 @@ public sealed class MainForm : Form
     {
         if (extensions.Length == 0) return;
 
-        control.AllowDrop = true;
-        control.DragEnter += (_, e) =>
+        // WinForms sends DragEnter/DragDrop to the child control directly under
+        // the mouse. Enable the whole upload row, including its label/button
+        // children, so dropping anywhere in the row works.
+        void Attach(Control target)
         {
-            if (e.Data?.GetDataPresent(DataFormats.FileDrop) == true)
+            target.AllowDrop = true;
+            target.DragEnter += (_, e) =>
             {
+                if (e.Data?.GetDataPresent(DataFormats.FileDrop) != true)
+                {
+                    e.Effect = DragDropEffects.None;
+                    return;
+                }
+
                 var files = (string[])e.Data.GetData(DataFormats.FileDrop)!;
                 e.Effect = files.Length == 1 &&
                            extensions.Contains(Path.GetExtension(files[0]), StringComparer.OrdinalIgnoreCase)
                     ? DragDropEffects.Copy
                     : DragDropEffects.None;
-            }
-        };
-        control.DragDrop += (_, e) =>
-        {
-            if (e.Data?.GetDataPresent(DataFormats.FileDrop) != true) return;
-            var files = (string[])e.Data.GetData(DataFormats.FileDrop)!;
-            if (files.Length != 1) return;
+            };
 
-            var path = files[0];
-            if (!extensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
-                return;
-
-            if (control is TextBox box)
-                box.Text = path;
-            else
+            target.DragDrop += (_, e) =>
             {
-                var boxChild = control.Controls.OfType<TextBox>().FirstOrDefault();
-                if (boxChild != null) boxChild.Text = path;
+                if (e.Data?.GetDataPresent(DataFormats.FileDrop) != true) return;
+
+                var files = (string[])e.Data.GetData(DataFormats.FileDrop)!;
+                if (files.Length != 1) return;
+
+                var path = files[0];
+                if (!extensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
+                    return;
+
+                var box = target as TextBox ??
+                          target.Controls.OfType<TextBox>().FirstOrDefault() ??
+                          target.Parent?.Controls.OfType<TextBox>().FirstOrDefault();
+
+                if (box != null)
+                    box.Text = path;
+            };
+
+            foreach (Control child in target.Controls)
+            {
+                // Avoid re-attaching the same TextBox when this helper is called
+                // for both the row and its textbox.
+                if (!ReferenceEquals(child, control))
+                    Attach(child);
             }
-        };
+        }
+
+        Attach(control);
     }
 
     private void PickXml()
