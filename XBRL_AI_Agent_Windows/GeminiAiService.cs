@@ -257,30 +257,110 @@ PREVIOUS-YEAR XBRL/XAG STRUCTURAL REFERENCE:
         IReadOnlyList<(string Name, string Uri)> files,
         CancellationToken cancellationToken)
     {
-        // Primary path: current Gemini Interactions API document workflow.
+        if (files.Count == 0)
+            throw new InvalidOperationException("No PDF documents were prepared for Gemini.");
+
+        // Primary path: send all documents together. Gemini officially supports
+        // multiple PDFs in one Interactions request, so this remains the fastest
+        // and most useful path when the complete request is accepted.
         var interactionResult = await TryInteractionsAsync(prompt, files, cancellationToken);
 
         if (interactionResult.Success)
             return interactionResult.Text;
 
         // Compatibility fallback: the legacy generateContent endpoint is still
-        // supported and can consume the same Gemini File URIs. This makes the
-        // desktop agent resilient if the Interactions endpoint temporarily
-        // rejects a particular request shape or has a transient backend issue.
+        // supported and can consume Gemini File URIs.
         if (interactionResult.StatusCode == 400)
         {
             var legacy = await TryLegacyGenerateContentAsync(prompt, files, cancellationToken);
             if (legacy.Success)
                 return legacy.Text;
 
+            // Some document combinations can be rejected even though each
+            // individual PDF is valid. Do not make the entire desktop workflow
+            // fail in that case. Process each uploaded PDF independently with a
+            // compact prompt and return a clearly labelled staged mapping.
+            var staged = await TryStagedDocumentMappingAsync(prompt, files, cancellationToken);
+            if (staged.Success)
+                return staged.Text;
+
             throw new InvalidOperationException(
-                "Gemini could not accept the document mapping request. " +
-                $"Interactions API: {interactionResult.Error}\r\n" +
-                $"Legacy document API: {legacy.Error}");
+                "Gemini rejected the combined document mapping request. The application also tried " +
+                "the legacy document endpoint and a staged one-document-per-request fallback.\r\n\r\n" +
+                $"Interactions API: {interactionResult.Error}\r\n\r\n" +
+                $"Legacy document API: {legacy.Error}\r\n\r\n" +
+                $"Staged fallback: {staged.Error}");
         }
 
         throw new InvalidOperationException(
             $"Gemini Interactions API returned HTTP {interactionResult.StatusCode}: {interactionResult.Error}");
+    }
+
+    private async Task<(bool Success, string Text, string Error)> TryStagedDocumentMappingAsync(
+        string prompt,
+        IReadOnlyList<(string Name, string Uri)> files,
+        CancellationToken cancellationToken)
+    {
+        var results = new List<string>();
+        var compactPrompt = prompt;
+
+        // A staged fallback should never resend the complete large reference
+        // multiple times. Keep the useful instructions and a bounded structural
+        // reference so free-tier rate limits are much less likely to be hit.
+        const int maxFallbackPromptCharacters = 60000;
+        if (compactPrompt.Length > maxFallbackPromptCharacters)
+        {
+            compactPrompt = compactPrompt[..maxFallbackPromptCharacters] +
+                "\r\n[STAGED FALLBACK: structural reference truncated for quota safety.]";
+        }
+
+        for (var i = 0; i < files.Count; i++)
+        {
+            var file = files[i];
+
+            var stagedPrompt =
+                compactPrompt +
+                "\r\n\r\nSTAGED FALLBACK INSTRUCTION:\r\n" +
+                $"Analyze ONLY the attached document #{i + 1} ({file.Name}) in this request. " +
+                "Extract useful current/previous evidence, values, page references, changes, " +
+                "conflicts and REVIEW_REQUIRED items. Do not assume that information in another " +
+                "document is present in this document. Return a concise mapping contribution.";
+
+            var one = await TryInteractionsAsync(
+                stagedPrompt,
+                new[] { file },
+                cancellationToken);
+
+            if (!one.Success)
+            {
+                // Try the legacy endpoint for the same single document before
+                // giving up on that source.
+                var legacyOne = await TryLegacyGenerateContentAsync(
+                    stagedPrompt,
+                    new[] { file },
+                    cancellationToken);
+
+                if (!legacyOne.Success)
+                    return (
+                        false,
+                        "",
+                        $"Document {i + 1} ({file.Name}) failed. " +
+                        $"Interactions: {one.Error}; Legacy: {legacyOne.Error}");
+                
+                one = (true, legacyOne.StatusCode, legacyOne.Text, "");
+            }
+
+            results.Add(
+                $"===== STAGED DOCUMENT {i + 1}: {file.Name} =====\r\n" +
+                one.Text);
+        }
+
+        return (
+            true,
+            "STAGED DOCUMENT MAPPING (combined-request fallback)\r\n" +
+            "===============================================\r\n\r\n" +
+            string.Join("\r\n\r\n", results),
+            "");
     }
 
     private async Task<(bool Success, int StatusCode, string Text, string Error)> TryInteractionsAsync(
