@@ -597,8 +597,8 @@ public sealed class MainForm : Form
         using var dialog = new Form
         {
             Text = "XBRL AI — AI Settings",
-            Width = 620,
-            Height = 360,
+            Width = 650,
+            Height = 430,
             StartPosition = FormStartPosition.CenterParent,
             BackColor = Surface,
             FormBorderStyle = FormBorderStyle.FixedDialog,
@@ -609,24 +609,71 @@ public sealed class MainForm : Form
         var title = new Label { Text = "AI Provider", Font = new Font("Segoe UI Semibold", 18, FontStyle.Bold), ForeColor = Navy, AutoSize = true, Location = new Point(28, 24) };
         dialog.Controls.Add(title);
 
-        dialog.Controls.Add(new Label { Text = "Google Gemini API key", AutoSize = true, Location = new Point(30, 78), Font = new Font("Segoe UI Semibold", 9) });
-        var key = new TextBox { Width = 530, Location = new Point(30, 102), UseSystemPasswordChar = true, Text = settings.GeminiApiKey };
+        dialog.Controls.Add(new Label { Text = "Choose AI provider", AutoSize = true, Location = new Point(30, 78), Font = new Font("Segoe UI Semibold", 9) });
+        var provider = new ComboBox { Width = 540, Location = new Point(30, 102), DropDownStyle = ComboBoxStyle.DropDownList };
+        provider.Items.AddRange(new object[] { "Google Gemini", "OpenAI", "Anthropic" });
+        provider.SelectedItem = settings.AiProvider;
+        if (provider.SelectedIndex < 0) provider.SelectedIndex = 0;
+        dialog.Controls.Add(provider);
+
+        dialog.Controls.Add(new Label { Text = "API key", AutoSize = true, Location = new Point(30, 150), Font = new Font("Segoe UI Semibold", 9) });
+        var key = new TextBox { Width = 540, Location = new Point(30, 174), UseSystemPasswordChar = true };
         dialog.Controls.Add(key);
 
-        dialog.Controls.Add(new Label { Text = "Model", AutoSize = true, Location = new Point(30, 150), Font = new Font("Segoe UI Semibold", 9) });
-        var model = new ComboBox { Width = 530, Location = new Point(30, 174), DropDownStyle = ComboBoxStyle.DropDownList };
-        model.Items.AddRange(new object[] { "gemini-2.5-flash", "gemini-2.5-flash-lite" });
-        model.SelectedItem = settings.GeminiModel;
-        if (model.SelectedIndex < 0) model.SelectedIndex = 0;
+        dialog.Controls.Add(new Label { Text = "Model", AutoSize = true, Location = new Point(30, 222), Font = new Font("Segoe UI Semibold", 9) });
+        var model = new TextBox { Width = 540, Location = new Point(30, 246) };
         dialog.Controls.Add(model);
 
-        var save = PrimaryButton("SAVE & TEST CONNECTION", 220);
-        save.Location = new Point(30, 230);
+        void LoadProviderValues()
+        {
+            switch (provider.SelectedItem?.ToString())
+            {
+                case "OpenAI":
+                    key.Text = settings.OpenAiApiKey;
+                    model.Text = settings.OpenAiModel;
+                    break;
+                case "Anthropic":
+                    key.Text = settings.AnthropicApiKey;
+                    model.Text = settings.AnthropicModel;
+                    break;
+                default:
+                    key.Text = settings.GeminiApiKey;
+                    model.Text = settings.GeminiModel;
+                    break;
+            }
+        }
+
+        void SaveProviderValues()
+        {
+            var selected = provider.SelectedItem?.ToString() ?? "Google Gemini";
+            if (selected == "OpenAI")
+            {
+                settings.OpenAiApiKey = key.Text.Trim();
+                settings.OpenAiModel = model.Text.Trim();
+            }
+            else if (selected == "Anthropic")
+            {
+                settings.AnthropicApiKey = key.Text.Trim();
+                settings.AnthropicModel = model.Text.Trim();
+            }
+            else
+            {
+                settings.GeminiApiKey = key.Text.Trim();
+                settings.GeminiModel = model.Text.Trim();
+            }
+
+            settings.AiProvider = selected;
+            settings.Save();
+        }
+
+        provider.SelectedIndexChanged += (_, _) => LoadProviderValues();
+        LoadProviderValues();
+
+        var save = PrimaryButton("SAVE & TEST CONNECTION", 240);
+        save.Location = new Point(30, 300);
         save.Click += async (_, _) =>
         {
-            settings.GeminiApiKey = key.Text.Trim();
-            settings.GeminiModel = model.SelectedItem?.ToString() ?? "gemini-2.5-flash";
-            settings.Save();
+            SaveProviderValues();
             try
             {
                 var result = await ai.TestConnectionAsync();
@@ -645,11 +692,11 @@ public sealed class MainForm : Form
 
         var privacy = new Label
         {
-            Text = "API keys are stored locally in your Windows user profile.\r\nFor professional use, never hard-code a shared API key into the EXE.",
+            Text = "Available providers: Google Gemini, OpenAI and Anthropic. API keys are stored locally in your Windows profile. Multimodal PDF mapping currently uses Gemini.",
             AutoSize = false,
-            Width = 530,
-            Height = 45,
-            Location = new Point(30, 285),
+            Width = 540,
+            Height = 48,
+            Location = new Point(30, 350),
             ForeColor = Color.FromArgb(95, 105, 120)
         };
         dialog.Controls.Add(privacy);
