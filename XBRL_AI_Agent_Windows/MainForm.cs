@@ -16,6 +16,8 @@ public sealed class MainForm : Form
     private readonly TextBox previousPdf = new();
     private readonly TextBox previousAuditReport = new();
     private readonly TextBox currentPdf = new();
+    private readonly TextBox currentFinancialPdf = new();
+    private readonly TextBox currentSupportingPdf = new();
     private readonly Label status = new();
     private readonly TextBox analysis = new();
     private readonly ProgressBar progress = new();
@@ -149,19 +151,21 @@ public sealed class MainForm : Form
     private void BuildCurrentTab(TabPage page)
     {
         var panel = NewContentPanel();
-        AddHero(panel, "Current-year source", "Upload the current audit report. The AI uses this as the primary evidence for current-year values.");
+        AddHero(panel, "Current-year sources", "Upload the current audit report plus other current-year financial/supporting PDFs. All selected current-year documents are treated as current-year evidence.");
 
-        var card = Card(960, 130);
+        var card = Card(960, 250);
         AddFileRow(card, "CURRENT AUDIT REPORT", currentPdf, PickCurrentPdf, 0);
+        AddFileRow(card, "CURRENT FINANCIAL / XBRL PDF", currentFinancialPdf, PickCurrentFinancialPdf, 1);
+        AddFileRow(card, "CURRENT SUPPORTING PDF", currentSupportingPdf, PickCurrentSupportingPdf, 2);
         panel.Controls.Add(card);
 
-        var analyze = PrimaryButton("ANALYSE CURRENT REPORT", 240);
-        analyze.Location = new Point(25, 285);
+        var analyze = PrimaryButton("ANALYSE CURRENT SOURCES", 240);
+        analyze.Location = new Point(25, 405);
         analyze.Click += async (_, _) => await AnalyzeCurrentAsync();
         panel.Controls.Add(analyze);
 
-        var note = InfoCard("Accuracy rule", "The application will never treat a prior-year number as a current-year number. Prior-year data is used for structure and mapping; current-year evidence drives values.", 680);
-        note.Location = new Point(285, 275);
+        var note = InfoCard("Accuracy rule", "The application will never treat a prior-year number as a current-year number. Prior-year data is used for structure and mapping; current-year evidence drives values. Additional current-year documents are compared as supporting evidence.", 680);
+        note.Location = new Point(285, 395);
         panel.Controls.Add(note);
 
         page.Controls.Add(panel);
@@ -399,6 +403,18 @@ public sealed class MainForm : Form
         if (d.ShowDialog() == DialogResult.OK) currentPdf.Text = d.FileName;
     }
 
+    private void PickCurrentFinancialPdf()
+    {
+        using var d = new OpenFileDialog { Title = "Select Current Year Financial / XBRL PDF", Filter = "PDF files (*.pdf)|*.pdf|All files (*.*)|*.*" };
+        if (d.ShowDialog() == DialogResult.OK) currentFinancialPdf.Text = d.FileName;
+    }
+
+    private void PickCurrentSupportingPdf()
+    {
+        using var d = new OpenFileDialog { Title = "Select Current Year Supporting PDF", Filter = "PDF files (*.pdf)|*.pdf|All files (*.*)|*.*" };
+        if (d.ShowDialog() == DialogResult.OK) currentSupportingPdf.Text = d.FileName;
+    }
+
     private void PickPreviousPdf()
     {
         using var d = new OpenFileDialog { Title = "Select Previous Year Financial / XBRL PDF", Filter = "PDF files (*.pdf)|*.pdf|All files (*.*)|*.*" };
@@ -456,27 +472,42 @@ public sealed class MainForm : Form
 
     private async Task AnalyzeCurrentAsync()
     {
-        if (!File.Exists(currentPdf.Text))
+        var currentFiles = new[] { currentPdf.Text, currentFinancialPdf.Text, currentSupportingPdf.Text }
+            .Where(File.Exists)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (currentFiles.Length == 0)
         {
-            MessageBox.Show("Select the current-year audit report PDF first.", "Input required", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show("Select at least one current-year PDF. The current-year audit report is recommended.", "Input required", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
 
         try
         {
             progress.Value = 10;
-            var text = await Task.Run(() => DocumentService.ExtractPdfText(currentPdf.Text, 60000));
-            progress.Value = 70;
-            analysis.Text = $"CURRENT-YEAR AUDIT EXTRACTION\r\n==============================\r\n\r\nFile: {Path.GetFileName(currentPdf.Text)}\r\nExtracted characters: {text.Length:N0}\r\n\r\nPDF TEXT PREVIEW\r\n-----------------\r\n{text[..Math.Min(text.Length, 12000)]}";
+            var previews = new System.Text.StringBuilder();
+            foreach (var file in currentFiles)
+            {
+                var text = await Task.Run(() => DocumentService.ExtractPdfText(file, 30000));
+                previews.AppendLine($"FILE: {Path.GetFileName(file)}");
+                previews.AppendLine($"Extracted characters: {text.Length:N0}");
+                previews.AppendLine(text[..Math.Min(text.Length, 5000)]);
+                previews.AppendLine();
+                previews.AppendLine(new string('-', 70));
+                previews.AppendLine();
+            }
+
             progress.Value = 100;
-            status.Text = "Current-year audit report extracted";
+            analysis.Text = $"CURRENT-YEAR SOURCE EXTRACTION\r\n==============================\r\n\r\nDocuments selected: {currentFiles.Length}\r\n\r\n{previews}";
+            status.Text = $"Current-year sources ready ({currentFiles.Length} document(s))";
             status.ForeColor = Color.DarkGreen;
             tabs.SelectedIndex = 2;
         }
         catch (Exception ex)
         {
             progress.Value = 0;
-            MessageBox.Show("Could not extract text from the PDF.\r\n\r\n" + ex.Message, "PDF extraction error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show("Could not extract text from the current-year PDF sources.\r\n\r\n" + ex.Message, "PDF extraction error", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
@@ -488,19 +519,24 @@ public sealed class MainForm : Form
             return;
         }
 
-        if (!File.Exists(currentPdf.Text))
+        var currentFiles = new[] { currentPdf.Text, currentFinancialPdf.Text, currentSupportingPdf.Text }
+            .Where(File.Exists)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (currentFiles.Length == 0)
         {
-            MessageBox.Show("Select the current-year audit report PDF first.", "Input required", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show("Select at least one current-year PDF. The current-year audit report is recommended.", "Input required", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
 
         var source = previousXml.Text;
-
         if (!File.Exists(source))
         {
             MessageBox.Show("Select the previous-year XBRL/XML first.", "Input required", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
+
         if (!File.Exists(previousPdf.Text) || !File.Exists(previousAuditReport.Text))
         {
             MessageBox.Show("Select the previous-year financial/XBRL PDF and previous-year audit report as well.", "Input required", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -512,20 +548,14 @@ public sealed class MainForm : Form
             progress.Value = 10;
             var reference = await Task.Run(() => BuildReferenceSummary(source));
             progress.Value = 35;
-            status.Text = "Uploading previous financial PDF to Gemini...";
+            status.Text = $"Preparing {currentFiles.Length + 2} source documents for Gemini...";
             status.ForeColor = Blue;
-
-            progress.Value = 45;
-            status.Text = "Uploading previous audit report to Gemini...";
-
-            progress.Value = 55;
-            status.Text = "Uploading current audit report and analysing scanned pages...";
 
             var result = await ai.GenerateMappingAsync(
                 reference,
                 previousPdf.Text,
                 previousAuditReport.Text,
-                currentPdf.Text);
+                currentFiles);
 
             progress.Value = 100;
             analysis.Text = result;
@@ -542,30 +572,84 @@ public sealed class MainForm : Form
     private string BuildReferenceSummary(string source)
     {
         var doc = XDocument.Load(source, LoadOptions.PreserveWhitespace);
-        var contexts = doc.Descendants().Where(e => e.Name.LocalName == "context").ToDictionary(
-            e => (string?)e.Attribute("id") ?? "",
-            e => e);
+        var contexts = doc.Descendants()
+            .Where(e => e.Name.LocalName == "context")
+            .ToDictionary(
+                e => (string?)e.Attribute("id") ?? "",
+                e => e);
 
         var elements = doc.Descendants()
             .Where(e => !e.HasElements && e.Attribute("contextRef") != null)
-            .Take(5000)
             .ToList();
 
-        var lines = elements.Select(e =>
-        {
-            var contextId = (string?)e.Attribute("contextRef") ?? "";
-            contexts.TryGetValue(contextId, out var context);
-            var period = GetContextPeriod(context);
-            var dimensions = context == null
-                ? ""
-                : string.Join(",", context.Descendants()
+        var concepts = elements
+            .Select(e => e.Name.LocalName)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(x => x)
+            .ToList();
+
+        var dimensions = elements
+            .SelectMany(e =>
+            {
+                var contextId = (string?)e.Attribute("contextRef") ?? "";
+                if (!contexts.TryGetValue(contextId, out var context))
+                    return Array.Empty<string>();
+
+                return context.Descendants()
                     .Where(x => x.Name.LocalName is "explicitMember" or "typedMember")
-                    .Select(x => $"{(string?)x.Attribute("dimension") ?? x.Name.LocalName}={(x.Value ?? "").Trim()}"));
+                    .Select(x => $"{(string?)x.Attribute("dimension") ?? x.Name.LocalName}={(x.Value ?? "").Trim()}");
+            })
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(x => x)
+            .Take(1200)
+            .ToList();
 
-            return $"{e.Name.LocalName} | Context={contextId} | Period={period} | Dimensions={dimensions} | Value={e.Value}";
-        });
+        // Keep the structural reference deliberately compact. Sending thousands of
+        // raw XBRL facts together with several PDFs can exceed Gemini free-tier
+        // input-token-per-minute limits before the model even starts mapping.
+        var detailed = elements
+            .Take(1800)
+            .Select(e =>
+            {
+                var contextId = (string?)e.Attribute("contextRef") ?? "";
+                contexts.TryGetValue(contextId, out var context);
+                var period = GetContextPeriod(context);
+                var dims = context == null
+                    ? ""
+                    : string.Join(",", context.Descendants()
+                        .Where(x => x.Name.LocalName is "explicitMember" or "typedMember")
+                        .Select(x => $"{(string?)x.Attribute("dimension") ?? x.Name.LocalName}={(x.Value ?? "").Trim()}"));
 
-        return string.Join(Environment.NewLine, lines);
+                return $"{e.Name.LocalName} | Context={contextId} | Period={period} | Dimensions={dims} | Value={e.Value}";
+            });
+
+        var summary = new System.Text.StringBuilder();
+        summary.AppendLine($"SOURCE: {Path.GetFileName(source)}");
+        summary.AppendLine($"TOTAL POPULATED LEAF FACTS: {elements.Count:N0}");
+        summary.AppendLine($"UNIQUE CONCEPTS: {concepts.Count:N0}");
+        summary.AppendLine();
+        summary.AppendLine("CONCEPT CATALOGUE:");
+        summary.AppendLine(string.Join(", ", concepts));
+        summary.AppendLine();
+        summary.AppendLine("DIMENSION / MEMBER CATALOGUE:");
+        foreach (var dimension in dimensions)
+            summary.AppendLine(dimension);
+        summary.AppendLine();
+        summary.AppendLine("DETAILED REFERENCE SAMPLE (STRUCTURE + PRIOR VALUE):");
+        foreach (var line in detailed)
+            summary.AppendLine(line);
+
+        const int maxCharacters = 120000;
+        if (summary.Length > maxCharacters)
+        {
+            summary.Length = maxCharacters;
+            summary.AppendLine();
+            summary.AppendLine("[REFERENCE TRUNCATED BY DESIGN TO PROTECT GEMINI INPUT QUOTA. The original XBRL file remains the authoritative structural source.]");
+        }
+
+        return summary.ToString();
     }
 
     private static DateTime? GetContextEndDate(XElement context)
