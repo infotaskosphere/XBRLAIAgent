@@ -17,7 +17,7 @@ public sealed class GeminiAiService
 
     public GeminiAiService(AppSettings settings) => this.settings = settings;
 
-    public bool IsConfigured => !string.IsNullOrWhiteSpace(settings.GeminiApiKey);
+    public bool IsConfigured => !string.IsNullOrWhiteSpace(settings.ActiveApiKey);
 
     public async Task<string> TestConnectionAsync(CancellationToken cancellationToken = default)
     {
@@ -251,7 +251,77 @@ PREVIOUS-YEAR XBRL/XAG STRUCTURAL REFERENCE:
 
     private async Task<string> GenerateAsync(string prompt, CancellationToken cancellationToken)
     {
-        var url = $"https://generativelanguage.googleapis.com/v1beta/models/{Uri.EscapeDataString(settings.GeminiModel)}:generateContent?key={Uri.EscapeDataString(settings.GeminiApiKey)}";
+        if (string.Equals(settings.AiProvider, "OpenAI", StringComparison.OrdinalIgnoreCase))
+        {
+            var url = "https://api.openai.com/v1/responses";
+            var payload = new
+            {
+                model = settings.ActiveModel,
+                input = new[]
+                {
+                    new
+                    {
+                        role = "user",
+                        content = new[] { new { type = "input_text", text = prompt } }
+                    }
+                },
+                temperature = 0.1
+            };
+
+            using var request = new HttpRequestMessage(HttpMethod.Post, url);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", settings.ActiveApiKey);
+            request.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+            using var response = await Http.SendAsync(request, cancellationToken);
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+                throw new InvalidOperationException($"OpenAI API returned {(int)response.StatusCode}: {body}");
+
+            using var json = JsonDocument.Parse(body);
+            if (json.RootElement.TryGetProperty("output_text", out var output))
+                return output.GetString() ?? "";
+
+            return ExtractResponseText(json.RootElement);
+        }
+
+        if (string.Equals(settings.AiProvider, "Anthropic", StringComparison.OrdinalIgnoreCase))
+        {
+            var url = "https://api.anthropic.com/v1/messages";
+            var payload = new
+            {
+                model = settings.ActiveModel,
+                max_tokens = 12000,
+                temperature = 0.1,
+                messages = new[]
+                {
+                    new
+                    {
+                        role = "user",
+                        content = new[] { new { type = "text", text = prompt } }
+                    }
+                }
+            };
+
+            using var request = new HttpRequestMessage(HttpMethod.Post, url);
+            request.Headers.TryAddWithoutValidation("x-api-key", settings.ActiveApiKey);
+            request.Headers.TryAddWithoutValidation("anthropic-version", "2023-06-01");
+            request.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+            using var response = await Http.SendAsync(request, cancellationToken);
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+                throw new InvalidOperationException($"Anthropic API returned {(int)response.StatusCode}: {body}");
+
+            using var json = JsonDocument.Parse(body);
+            return ExtractResponseText(json.RootElement);
+        }
+
+        return await GenerateGeminiTextAsync(prompt, cancellationToken);
+    }
+
+    private async Task<string> GenerateGeminiTextAsync(string prompt, CancellationToken cancellationToken)
+    {
+        var url = $"https://generativelanguage.googleapis.com/v1beta/models/{Uri.EscapeDataString(settings.ActiveModel)}:generateContent?key={Uri.EscapeDataString(settings.ActiveApiKey)}";
 
         var payload = new
         {
