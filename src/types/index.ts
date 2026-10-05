@@ -127,3 +127,33 @@ export interface AiSettings {
   temperature: number;
   autoMapOnUpload: boolean;
 }
+
+export type UserRole = 
+  | 'CHARTERED_ACCOUNTANT' 
+  | 'COMPANY_SECRETARY' 
+  | 'COST_ACCOUNTANT' 
+  | 'AUDIT_PARTNER' 
+  | 'AUDIT_ASSISTANT';
+
+export interface UserProfile {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  membershipNumber?: string; // e.g. "FCA 148920" or "FCS 9420"
+  firmName?: string; // e.g. "Desai & Associates"
+  firmRegistrationNumber?: string; // e.g. "FRN 102345W"
+  udinPrefix?: string;
+  rememberMe?: boolean;
+  createdAt: string;
+}
+
+export interface MongoDbConfig {
+  connectionUri: string;
+  databaseName: string;
+  factsCollection: string;
+  usersCollection: string;
+  auditTrailCollection: string;
+  isConnected?: boolean;
+  lastTestedAt?: string;
+}

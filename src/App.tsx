@@ -7,12 +7,16 @@ import { SagGenXbrlTab } from './components/SagGenXbrlTab';
 import { RegulatoryLibraryTab } from './components/RegulatoryLibraryTab';
 import { DocumentPreviewModal } from './components/DocumentPreviewModal';
 import { SettingsModal } from './components/SettingsModal';
-import { TaxonomyStandard, UploadedDocument, FileRole, MappedFact, AiSettings } from './types';
+import { LoginPage } from './components/LoginPage';
+import { TaxonomyStandard, UploadedDocument, FileRole, MappedFact, AiSettings, UserProfile } from './types';
 import { parseUploadedFile } from './services/documentParser';
 import { mapDocumentsToTaxonomy, generateInitialFacts } from './services/xbrlMappingEngine';
+import { getCurrentSession, clearSession } from './services/authService';
 import { CheckCircle2, AlertCircle, Info, Sparkles } from 'lucide-react';
 
 export const App: React.FC = () => {
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => getCurrentSession());
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'CURRENT' | 'PREVIOUS' | 'MAPPING' | 'SAG' | 'LIBRARY'>('CURRENT');
   const [taxonomy, setTaxonomy] = useState<TaxonomyStandard>('IND_AS');
   
@@ -32,6 +36,18 @@ export const App: React.FC = () => {
     temperature: 0.1,
     autoMapOnUpload: true
   });
+
+  const handleSignOut = () => {
+    clearSession();
+    setCurrentUser(null);
+    showToast('info', 'Signed out. Your audit profile remains saved on this computer.');
+  };
+
+  const handleLoginSuccess = (user: UserProfile) => {
+    setCurrentUser(user);
+    setIsLoginModalOpen(false);
+    showToast('success', `Logged in as ${user.name} (${user.membershipNumber || 'Auditor'})`);
+  };
 
   // Re-generate default facts if taxonomy changes and user hasn't uploaded custom files yet
   const handleTaxonomyChange = (newTaxonomy: TaxonomyStandard) => {
@@ -172,6 +188,9 @@ export const App: React.FC = () => {
         onDetectSag={handleDetectSag}
         onQuickRun={handleRunMapping}
         isProcessing={isProcessing}
+        currentUser={currentUser}
+        onOpenLogin={() => setIsLoginModalOpen(true)}
+        onSignOut={handleSignOut}
       />
 
       {/* Tab Navigation Ribbon */}
@@ -298,6 +317,16 @@ export const App: React.FC = () => {
           showToast('success', 'AI settings updated successfully');
         }}
       />
+
+      {/* Auditor Login Modal / Required Login */}
+      {isLoginModalOpen && (
+        <LoginPage
+          isModal
+          currentUser={currentUser}
+          onLoginSuccess={handleLoginSuccess}
+          onClose={() => setIsLoginModalOpen(false)}
+        />
+      )}
 
       {/* Footer */}
       <footer className="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-500">

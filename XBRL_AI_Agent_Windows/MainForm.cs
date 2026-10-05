@@ -51,6 +51,8 @@ public sealed class MainForm : Form
     // State
     private readonly AppSettings settings;
     private readonly GeminiAiService ai;
+    private AuditorUser? currentUser;
+    private readonly Button btnUser = new();
     private TaxonomyStandard currentTaxonomy = TaxonomyStandard.IndAS;
     private List<MappedFact> currentFacts = new();
 
@@ -83,6 +85,7 @@ public sealed class MainForm : Form
         BuildShell();
         BuildTabs();
         UpdateAiStatus();
+        UpdateUserBadge();
         DetectSagSilent();
         RefreshMappingGrid();
         RefreshSagFieldGrid();
@@ -100,20 +103,33 @@ public sealed class MainForm : Form
         var rightPanel = new Panel
         {
             Dock = DockStyle.Right,
-            Width = 280,
+            Width = 460,
             BackColor = Navy
         };
+
+        // Auditor User Profile Badge Button
+        btnUser.Width = 190;
+        btnUser.Height = 44;
+        btnUser.Location = new Point(255, 20);
+        btnUser.FlatStyle = FlatStyle.Flat;
+        btnUser.BackColor = Color.FromArgb(14, 42, 77);
+        btnUser.ForeColor = Color.White;
+        btnUser.Font = new Font("Segoe UI Semibold", 8.2f);
+        btnUser.Cursor = Cursors.Hand;
+        btnUser.FlatAppearance.BorderColor = Color.FromArgb(35, 78, 128);
+        btnUser.Click += (_, _) => ShowLogin();
+        rightPanel.Controls.Add(btnUser);
 
         var settingsButton = new Button
         {
             Text = "⚙ AI SETTINGS",
-            Width = 115,
+            Width = 105,
             Height = 34,
             FlatStyle = FlatStyle.Flat,
             BackColor = Color.FromArgb(18, 48, 82),
             ForeColor = Color.White,
-            Font = new Font("Segoe UI Semibold", 8.8f),
-            Location = new Point(150, 25),
+            Font = new Font("Segoe UI Semibold", 8.2f),
+            Location = new Point(140, 25),
             Cursor = Cursors.Hand
         };
         settingsButton.FlatAppearance.BorderColor = Color.FromArgb(46, 83, 121);
@@ -121,9 +137,9 @@ public sealed class MainForm : Form
         rightPanel.Controls.Add(settingsButton);
 
         aiStatus.AutoSize = true;
-        aiStatus.Font = new Font("Segoe UI Semibold", 8.8f);
+        aiStatus.Font = new Font("Segoe UI Semibold", 8.2f);
         aiStatus.ForeColor = Color.FromArgb(161, 190, 220);
-        aiStatus.Location = new Point(10, 32);
+        aiStatus.Location = new Point(8, 33);
         rightPanel.Controls.Add(aiStatus);
 
         header.Controls.Add(rightPanel);
@@ -982,6 +998,33 @@ public sealed class MainForm : Form
     // -------------------------------------------------------------
     // HELPERS & DIALOGS
     // -------------------------------------------------------------
+    private void ShowLogin()
+    {
+        using var dlg = new LoginForm();
+        if (dlg.ShowDialog(this) == DialogResult.OK && dlg.LoggedInUser != null)
+        {
+            currentUser = dlg.LoggedInUser;
+            UpdateUserBadge();
+            status.Text = $"Authenticated as: {currentUser.Name} ({currentUser.Role})";
+            MessageBox.Show($"Logged in successfully as {currentUser.Name}!\r\nMembership: {currentUser.MembershipNumber}\r\nFirm: {currentUser.FirmName}", "Authentication Successful", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+    }
+
+    private void UpdateUserBadge()
+    {
+        if (currentUser != null)
+        {
+            var shortRole = currentUser.Role.Contains("Company") ? "CS" : "CA";
+            btnUser.Text = $"👤 {currentUser.Name}\r\n{currentUser.MembershipNumber ?? shortRole}";
+            btnUser.BackColor = Color.FromArgb(14, 42, 77);
+        }
+        else
+        {
+            btnUser.Text = "🔒 AUDITOR SIGN IN";
+            btnUser.BackColor = Blue;
+        }
+    }
+
     private void ShowAuditHistoryDialog()
     {
         using var dlg = new Form

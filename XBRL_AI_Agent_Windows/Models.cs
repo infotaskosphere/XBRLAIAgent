@@ -110,3 +110,28 @@ public sealed class SagExportOptions
     public bool IncludeCaro { get; set; } = true;
     public bool IncludeAuditReport { get; set; } = true;
 }
+
+public sealed class AuditorUser
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    public string Name { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string PasswordHash { get; set; } = string.Empty;
+    public string Role { get; set; } = "Chartered Accountant (ICAI)";
+    public string MembershipNumber { get; set; } = string.Empty;
+    public string FirmName { get; set; } = string.Empty;
+    public string FirmRegistrationNumber { get; set; } = string.Empty;
+    public bool RememberOnThisComputer { get; set; } = true;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+
+public sealed class MongoDbSettings
+{
+    public string ConnectionUri { get; set; } = "mongodb://localhost:27017";
+    public string DatabaseName { get; set; } = "xbrl_auditor_db";
+    public string FactsCollection { get; set; } = "filing_facts";
+    public string UsersCollection { get; set; } = "auditor_profiles";
+    public string AuditTrailCollection { get; set; } = "change_history";
+    public bool IsConnected { get; set; } = true;
+    public DateTime LastTestedAt { get; set; } = DateTime.UtcNow;
+}
