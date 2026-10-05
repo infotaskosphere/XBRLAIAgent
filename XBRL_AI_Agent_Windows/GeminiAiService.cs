@@ -107,6 +107,29 @@ Concept | Role | Period | Dimension/Member | Previous Value | Current Value | So
 PREVIOUS-YEAR XBRL/XAG STRUCTURAL REFERENCE:
 """ + previousReference;
 
+            var nonPdfSupporting = previousSupportingPaths
+                .Where(File.Exists)
+                .Where(path => !IsPdf(path))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            if (nonPdfSupporting.Length > 0)
+            {
+                prompt += "\r\n\r\nPREVIOUS-YEAR NON-PDF SUPPORTING DOCUMENT TEXT:\r\n";
+                foreach (var supporting in nonPdfSupporting)
+                {
+                    try
+                    {
+                        var extracted = DocumentService.ExtractDocumentText(supporting, 20000);
+                        prompt += $"\r\n--- {Path.GetFileName(supporting)} ---\r\n{extracted}\r\n";
+                    }
+                    catch (Exception ex)
+                    {
+                        prompt += $"\r\n--- {Path.GetFileName(supporting)} ---\r\n[READ ERROR: {ex.Message}]\r\n";
+                    }
+                }
+            }
+
             return await GenerateWithFilesAsync(prompt, uploaded, cancellationToken);
         }
         finally
@@ -234,16 +257,40 @@ PREVIOUS-YEAR XBRL/XAG STRUCTURAL REFERENCE:
         IReadOnlyList<(string Name, string Uri)> files,
         CancellationToken cancellationToken)
     {
-        // Keep this request deliberately close to Google's documented REST
-        // example: model + input only. Extra generation fields can cause
-        // INVALID_REQUEST responses when a model/API revision changes.
+        // Primary path: current Gemini Interactions API document workflow.
+        var interactionResult = await TryInteractionsAsync(prompt, files, cancellationToken);
+
+        if (interactionResult.Success)
+            return interactionResult.Text;
+
+        // Compatibility fallback: the legacy generateContent endpoint is still
+        // supported and can consume the same Gemini File URIs. This makes the
+        // desktop agent resilient if the Interactions endpoint temporarily
+        // rejects a particular request shape or has a transient backend issue.
+        if (interactionResult.StatusCode == 400)
+        {
+            var legacy = await TryLegacyGenerateContentAsync(prompt, files, cancellationToken);
+            if (legacy.Success)
+                return legacy.Text;
+
+            throw new InvalidOperationException(
+                "Gemini could not accept the document mapping request. " +
+                $"Interactions API: {interactionResult.Error}\r\n" +
+                $"Legacy document API: {legacy.Error}");
+        }
+
+        throw new InvalidOperationException(
+            $"Gemini Interactions API returned HTTP {interactionResult.StatusCode}: {interactionResult.Error}");
+    }
+
+    private async Task<(bool Success, int StatusCode, string Text, string Error)> TryInteractionsAsync(
+        string prompt,
+        IReadOnlyList<(string Name, string Uri)> files,
+        CancellationToken cancellationToken)
+    {
         var input = new List<object>
         {
-            new
-            {
-                type = "text",
-                text = prompt
-            }
+            new { type = "text", text = prompt }
         };
 
         foreach (var file in files)
@@ -256,13 +303,13 @@ PREVIOUS-YEAR XBRL/XAG STRUCTURAL REFERENCE:
             });
         }
 
-        var url = "https://generativelanguage.googleapis.com/v1beta/interactions";
-
         var payload = new
         {
             model = settings.GeminiModel,
             input = input.ToArray()
         };
+
+        var url = "https://generativelanguage.googleapis.com/v1beta/interactions";
 
         using var request = new HttpRequestMessage(HttpMethod.Post, url);
         request.Headers.TryAddWithoutValidation("x-goog-api-key", settings.GeminiApiKey);
@@ -279,21 +326,61 @@ PREVIOUS-YEAR XBRL/XAG STRUCTURAL REFERENCE:
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
 
         if (!response.IsSuccessStatusCode)
-        {
-            if ((int)response.StatusCode == 429)
-            {
-                throw new InvalidOperationException(
-                    "Gemini quota was exceeded for this mapping request. " +
-                    "The XBRL reference is compacted and documents are uploaded through the Files API. " +
-                    "Wait briefly and run the mapping again.");
-            }
-
-            throw new InvalidOperationException(
-                $"Gemini Interactions API returned {(int)response.StatusCode}: {body}");
-        }
+            return (false, (int)response.StatusCode, "", body);
 
         using var json = JsonDocument.Parse(body);
-        return ExtractInteractionText(json.RootElement);
+        return (true, (int)response.StatusCode, ExtractInteractionText(json.RootElement), "");
+    }
+
+    private async Task<(bool Success, int StatusCode, string Text, string Error)> TryLegacyGenerateContentAsync(
+        string prompt,
+        IReadOnlyList<(string Name, string Uri)> files,
+        CancellationToken cancellationToken)
+    {
+        var parts = new List<object> { new { text = prompt } };
+
+        foreach (var file in files)
+        {
+            parts.Add(new
+            {
+                file_data = new
+                {
+                    mime_type = "application/pdf",
+                    file_uri = file.Uri
+                }
+            });
+        }
+
+        var url =
+            $"https://generativelanguage.googleapis.com/v1beta/models/" +
+            $"{Uri.EscapeDataString(settings.GeminiModel)}:generateContent" +
+            $"?key={Uri.EscapeDataString(settings.GeminiApiKey)}";
+
+        var payload = new
+        {
+            contents = new[]
+            {
+                new
+                {
+                    role = "user",
+                    parts = parts.ToArray()
+                }
+            }
+        };
+
+        using var content = new StringContent(
+            JsonSerializer.Serialize(payload),
+            Encoding.UTF8,
+            "application/json");
+
+        using var response = await Http.PostAsync(url, content, cancellationToken);
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+            return (false, (int)response.StatusCode, "", body);
+
+        using var json = JsonDocument.Parse(body);
+        return (true, (int)response.StatusCode, ExtractResponseText(json.RootElement), "");
     }
 
     private static string ExtractInteractionText(JsonElement root)
