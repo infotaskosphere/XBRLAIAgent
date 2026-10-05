@@ -51,3 +51,5 @@ jobs:
           name: XBRL-AI-Agent-Windows-x64-ZIP
           path: XBRL-AI-Agent-Windows-x64.zip
           if-no-files-found: error
+
+# Build latest XBRL AI Agent changes on every main-branch push.
