@@ -19,16 +19,11 @@ public static class DocumentService
 
         try
         {
-            // PdfPig already uses lenient parsing by default, but explicitly
-            // enable recovery and skip missing fonts so damaged/vendor PDFs
-            // do not unnecessarily stop the entire workflow.
-            var options = new ParsingOptions
-            {
-                UseLenientParsing = true,
-                SkipMissingFonts = true
-            };
-
-            using var document = PdfDocument.Open(path, options);
+            // PdfPig's standard open path is retained for maximum compatibility
+            // with the exact package version shipped in the EXE. Any parser
+            // exception is contained below so one malformed PDF cannot stop
+            // the complete document workflow.
+            using var document = PdfDocument.Open(path);
 
             foreach (var page in document.GetPages())
             {
