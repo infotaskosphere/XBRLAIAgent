@@ -17,6 +17,16 @@ public enum MappingStatus
     NEW_ITEM
 }
 
+public sealed class AnomalyAlert
+{
+    public bool IsAnomaly { get; set; } = true;
+    public string Severity { get; set; } = "HIGH"; // HIGH, MEDIUM
+    public string Type { get; set; } = "GROWTH_SPIKE";
+    public double PctChange { get; set; } = 0;
+    public string Message { get; set; } = "";
+    public string RecommendedAction { get; set; } = "";
+}
+
 public sealed class FactHistoryEntry
 {
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
@@ -48,6 +58,7 @@ public sealed class MappedFact
     public string SagFieldId { get; set; } = "";
     public string SagScreenRef { get; set; } = "";
     public bool EditedManually { get; set; } = false;
+    public AnomalyAlert? Anomaly { get; set; }
     public List<FactHistoryEntry> History { get; set; } = new();
 
     public void AddHistory(string newValue, string author = "Auditor", string type = "MANUAL_OVERRIDE", string notes = "")

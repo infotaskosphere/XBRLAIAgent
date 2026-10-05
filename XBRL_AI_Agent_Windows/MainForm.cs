@@ -78,6 +78,7 @@ public sealed class MainForm : Form
         DoubleBuffered = true;
 
         currentFacts = TaxonomyCatalog.GetInitialFacts(currentTaxonomy);
+        AnomalyDetectionEngine.RunDetection(currentFacts);
 
         BuildShell();
         BuildTabs();
@@ -323,25 +324,39 @@ public sealed class MainForm : Form
         {
             currentTaxonomy = taxonomySelector.SelectedIndex == 0 ? TaxonomyStandard.IndAS : TaxonomyStandard.NonIndAS;
             currentFacts = TaxonomyCatalog.GetInitialFacts(currentTaxonomy);
+            AnomalyDetectionEngine.RunDetection(currentFacts);
             RefreshMappingGrid();
             RefreshSagFieldGrid();
             status.Text = $"Switched taxonomy to: {currentTaxonomy}";
         };
         toolbar.Controls.Add(taxonomySelector);
 
-        var btnRunMapping = PrimaryButton("RUN AI MAPPING", 160);
-        btnRunMapping.Location = new Point(410, 10);
+        var btnScanOutliers = PrimaryButton("🚨 SCAN OUTLIERS", 150);
+        btnScanOutliers.BackColor = Color.FromArgb(185, 28, 28);
+        btnScanOutliers.Location = new Point(400, 10);
+        btnScanOutliers.Click += (_, _) =>
+        {
+            AnomalyDetectionEngine.RunDetection(currentFacts);
+            RefreshMappingGrid();
+            var outliersCount = currentFacts.Count(f => f.Anomaly != null && f.Anomaly.IsAnomaly);
+            MessageBox.Show($"Automated anomaly detection completed!\r\n\r\nFlagged {outliersCount} outlier line item(s) exceeding normal variance thresholds.\r\nOutliers are highlighted in red for auditor review.", "Anomaly Detection Complete", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            status.Text = $"Anomaly Scan: Flagged {outliersCount} outlier line item(s)";
+        };
+        toolbar.Controls.Add(btnScanOutliers);
+
+        var btnRunMapping = PrimaryButton("RUN AI MAPPING", 150);
+        btnRunMapping.Location = new Point(560, 10);
         btnRunMapping.Click += async (_, _) => await RunAiMappingAsync();
         toolbar.Controls.Add(btnRunMapping);
 
         var btnHistory = SecondaryButton("📜 AUDIT HISTORY", 140);
-        btnHistory.Location = new Point(585, 10);
+        btnHistory.Location = new Point(720, 10);
         btnHistory.Click += (_, _) => ShowAuditHistoryDialog();
         toolbar.Controls.Add(btnHistory);
 
-        var btnExportSag = PrimaryButton("CONTINUE TO SAG ➔", 160);
+        var btnExportSag = PrimaryButton("CONTINUE TO SAG ➔", 150);
         btnExportSag.BackColor = Emerald;
-        btnExportSag.Location = new Point(740, 10);
+        btnExportSag.Location = new Point(870, 10);
         btnExportSag.Click += (_, _) => tabs.SelectedIndex = 3;
         toolbar.Controls.Add(btnExportSag);
 
@@ -374,7 +389,7 @@ public sealed class MainForm : Form
         mappingGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Schedule", DataPropertyName = "Schedule", FillWeight = 16 });
         mappingGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "PY Value", DataPropertyName = "PreviousValue", FillWeight = 18 });
         mappingGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "CY Value (Editable)", DataPropertyName = "CurrentValue", FillWeight = 20 });
-        mappingGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Variance", FillWeight = 14 });
+        mappingGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Variance / Outlier", FillWeight = 16 });
         mappingGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Status", DataPropertyName = "Status", FillWeight = 16 });
 
         mappingGrid.CellEndEdit += (_, e) =>
@@ -386,6 +401,7 @@ public sealed class MainForm : Form
                 if (cellVal != fact.CurrentValue)
                 {
                     fact.AddHistory(cellVal, "Auditor", "MANUAL_OVERRIDE", "Manual inline edit");
+                    AnomalyDetectionEngine.RunDetection(currentFacts);
                     RefreshMappingGrid();
                     RefreshSagFieldGrid();
                     status.Text = $"Updated {fact.Label} to {cellVal} (Logged in History)";
@@ -402,21 +418,39 @@ public sealed class MainForm : Form
         mappingGrid.Rows.Clear();
         foreach (var fact in currentFacts)
         {
+            var varianceText = CalculateVariance(fact.PreviousValue, fact.CurrentValue);
+            var isOutlier = fact.Anomaly != null && fact.Anomaly.IsAnomaly;
+            if (isOutlier)
+            {
+                varianceText = $"🚨 {varianceText} (Outlier)";
+            }
+
+            var statusText = isOutlier ? "REVIEW OUTLIER" : fact.Status.ToString();
+
             var rowIdx = mappingGrid.Rows.Add(
                 fact.ConceptName,
                 fact.Label,
                 fact.Schedule,
                 FormatCurrency(fact.PreviousValue, fact.Unit),
                 fact.CurrentValue,
-                CalculateVariance(fact.PreviousValue, fact.CurrentValue),
-                fact.Status.ToString()
+                varianceText,
+                statusText
             );
 
             var row = mappingGrid.Rows[rowIdx];
-            if (fact.Status == MappingStatus.REVIEW_REQUIRED)
+            if (isOutlier)
+            {
+                row.DefaultCellStyle.BackColor = Color.FromArgb(254, 242, 242);
+                row.DefaultCellStyle.ForeColor = Color.FromArgb(153, 27, 27);
+            }
+            else if (fact.Status == MappingStatus.REVIEW_REQUIRED)
+            {
                 row.DefaultCellStyle.BackColor = Color.FromArgb(254, 249, 235);
+            }
             else if (fact.EditedManually)
+            {
                 row.DefaultCellStyle.BackColor = Color.FromArgb(240, 249, 255);
+            }
         }
 
         lblTotalFacts.Text = currentFacts.Count.ToString();

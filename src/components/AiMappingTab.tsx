@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { Search, Sparkles, Filter, CheckCircle2, AlertTriangle, RefreshCw, FileText, ArrowUpDown, Edit2, ShieldAlert, History } from 'lucide-react';
+import { Search, Sparkles, Filter, CheckCircle2, AlertTriangle, RefreshCw, FileText, ArrowUpDown, Edit2, ShieldAlert, History, Activity, Flame, Check } from 'lucide-react';
 import { MappedFact, TaxonomyStandard, MappingStatus, FactHistoryEntry } from '../types';
 import { FactHistorySidebar } from './FactHistorySidebar';
+import { AnomalyReviewModal } from './AnomalyReviewModal';
+import { runAutomatedAnomalyDetection } from '../services/anomalyDetectionEngine';
 
 interface AiMappingTabProps {
   facts: MappedFact[];
@@ -23,10 +25,16 @@ export const AiMappingTab: React.FC<AiMappingTabProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [scheduleFilter, setScheduleFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [outlierFilter, setOutlierFilter] = useState<'ALL' | 'OUTLIERS_ONLY' | 'HIGH_SEVERITY'>('ALL');
   const [editingFactId, setEditingFactId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>('');
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [selectedHistoryFact, setSelectedHistoryFact] = useState<MappedFact | null>(null);
+  const [selectedAnomalyFact, setSelectedAnomalyFact] = useState<MappedFact | null>(null);
+  const [isScanningAnomalies, setIsScanningAnomalies] = useState(false);
+
+  const outlierFacts = facts.filter(f => f.anomaly && f.anomaly.isAnomaly);
+  const highOutliersCount = outlierFacts.filter(f => f.anomaly?.severity === 'HIGH').length;
 
   const filteredFacts = facts.filter(f => {
     const matchesSearch = 
@@ -36,8 +44,12 @@ export const AiMappingTab: React.FC<AiMappingTabProps> = ({
       
     const matchesSchedule = scheduleFilter === 'ALL' || f.schedule === scheduleFilter;
     const matchesStatus = statusFilter === 'ALL' || f.status === statusFilter;
+    const matchesOutlier = 
+      outlierFilter === 'ALL' ||
+      (outlierFilter === 'OUTLIERS_ONLY' && Boolean(f.anomaly?.isAnomaly)) ||
+      (outlierFilter === 'HIGH_SEVERITY' && f.anomaly?.severity === 'HIGH');
 
-    return matchesSearch && matchesSchedule && matchesStatus;
+    return matchesSearch && matchesSchedule && matchesStatus && matchesOutlier;
   });
 
   const totalCount = facts.length;
@@ -75,6 +87,34 @@ export const AiMappingTab: React.FC<AiMappingTabProps> = ({
     }, {
       isRevert: true,
       reason: `Reverted to historical version from ${new Date(entry.timestamp).toLocaleDateString()}`
+    });
+  };
+
+  const handleTriggerAnomalyScan = () => {
+    setIsScanningAnomalies(true);
+    setTimeout(() => {
+      const result = runAutomatedAnomalyDetection(facts);
+      result.facts.forEach(f => {
+        if (f.anomaly) {
+          onUpdateFact(f.id, {
+            anomaly: f.anomaly,
+            status: f.anomaly.severity === 'HIGH' ? 'REVIEW_REQUIRED' : f.status,
+            reviewNotes: f.anomaly.message
+          }, { reason: `Automated anomaly detection: ${f.anomaly.type}` });
+        }
+      });
+      setIsScanningAnomalies(false);
+      setOutlierFilter('OUTLIERS_ONLY');
+    }, 450);
+  };
+
+  const handleAcceptAnomalyValue = (fact: MappedFact) => {
+    onUpdateFact(fact.id, {
+      status: 'CONFIRMED',
+      anomaly: undefined,
+      reviewNotes: 'Auditor verified and accepted outlier figure against audit workpapers'
+    }, {
+      reason: 'Auditor confirmed and accepted outlier figure against audit workpapers'
     });
   };
 
@@ -138,6 +178,20 @@ export const AiMappingTab: React.FC<AiMappingTabProps> = ({
 
           <div className="flex items-center gap-2.5">
             <button
+              onClick={handleTriggerAnomalyScan}
+              disabled={isScanningAnomalies}
+              className="px-3.5 py-2 bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-700 hover:to-amber-700 text-white font-bold text-xs rounded-lg shadow-sm transition-all flex items-center gap-1.5"
+              title="Run Automated Anomaly & Outlier Detection across financial statements"
+            >
+              <Activity className={`w-3.5 h-3.5 ${isScanningAnomalies ? 'animate-spin' : ''}`} />
+              <span>{isScanningAnomalies ? 'Scanning Outliers...' : 'Scan Anomalies'}</span>
+              {outlierFacts.length > 0 && (
+                <span className="bg-white text-red-700 text-[10px] font-extrabold px-1.5 py-0.2 rounded-full">
+                  {outlierFacts.length}
+                </span>
+              )}
+            </button>
+            <button
               onClick={() => {
                 setSelectedHistoryFact(null);
                 setIsHistoryOpen(true);
@@ -169,41 +223,63 @@ export const AiMappingTab: React.FC<AiMappingTabProps> = ({
         </div>
 
         {/* Executive Metrics Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-2 border-t border-slate-100">
-          <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-            <span className="text-[11px] font-semibold text-slate-500 block">Total Facts Tagged</span>
+        <div className="grid grid-cols-2 sm:grid-cols-6 gap-2.5 pt-2 border-t border-slate-100">
+          <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+            <span className="text-[10px] font-semibold text-slate-500 block uppercase">Total Facts Tagged</span>
             <span className="text-xl font-extrabold text-[#071b36]">{totalCount}</span>
           </div>
 
-          <div className="bg-emerald-50 p-3 rounded-lg border border-emerald-200">
-            <span className="text-[11px] font-semibold text-emerald-700 block">Confirmed / Static</span>
+          <div className="bg-emerald-50 p-2.5 rounded-lg border border-emerald-200">
+            <span className="text-[10px] font-semibold text-emerald-700 block uppercase">Confirmed / Static</span>
             <span className="text-xl font-extrabold text-emerald-800">{confirmedCount}</span>
           </div>
 
-          <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
-            <span className="text-[11px] font-semibold text-blue-700 block">Updated Current Values</span>
+          <div className="bg-blue-50 p-2.5 rounded-lg border border-blue-200">
+            <span className="text-[10px] font-semibold text-blue-700 block uppercase">Updated CY Values</span>
             <span className="text-xl font-extrabold text-blue-800">{changedCount}</span>
           </div>
 
-          <div className="bg-amber-50 p-3 rounded-lg border border-amber-200">
-            <span className="text-[11px] font-semibold text-amber-700 block">Requires Auditor Review</span>
+          <div className="bg-amber-50 p-2.5 rounded-lg border border-amber-200">
+            <span className="text-[10px] font-semibold text-amber-700 block uppercase">Requires Review</span>
             <span className="text-xl font-extrabold text-amber-800">{reviewCount}</span>
           </div>
 
-          <div className={`p-3 rounded-lg border col-span-2 sm:col-span-1 ${
+          {/* Anomaly Outliers Card */}
+          <div 
+            onClick={() => setOutlierFilter(outlierFilter === 'OUTLIERS_ONLY' ? 'ALL' : 'OUTLIERS_ONLY')}
+            className={`p-2.5 rounded-lg border cursor-pointer transition-all ${
+              outlierFacts.length > 0 
+                ? 'bg-red-50/80 border-red-300 hover:border-red-400' 
+                : 'bg-slate-50 border-slate-200'
+            }`}
+            title="Click to toggle filter for outliers only"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold text-red-700 uppercase block">Outliers Detected</span>
+              {outlierFacts.length > 0 && <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />}
+            </div>
+            <div className="flex items-baseline gap-1 mt-0.5">
+              <span className="text-xl font-extrabold text-red-800">{outlierFacts.length}</span>
+              {highOutliersCount > 0 && (
+                <span className="text-[10px] font-bold text-red-600">({highOutliersCount} High)</span>
+              )}
+            </div>
+          </div>
+
+          <div className={`p-2.5 rounded-lg border ${
             isBalanced ? 'bg-emerald-50 border-emerald-300 text-emerald-900' : 'bg-red-50 border-red-300 text-red-900'
           }`}>
-            <span className="text-[11px] font-semibold block">Balance Sheet Math</span>
-            <span className="text-sm font-bold flex items-center gap-1 mt-1">
+            <span className="text-[10px] font-semibold block uppercase">Balance Sheet Math</span>
+            <span className="text-xs font-bold flex items-center gap-1 mt-1.5">
               {isBalanced ? (
                 <>
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span>Balanced (A = L+E)</span>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Balanced</span>
                 </>
               ) : (
                 <>
-                  <AlertTriangle className="w-4 h-4 text-red-600" />
-                  <span>Check Differences</span>
+                  <AlertTriangle className="w-3.5 h-3.5 text-red-600" />
+                  <span>Check Diff</span>
                 </>
               )}
             </span>
@@ -243,6 +319,23 @@ export const AiMappingTab: React.FC<AiMappingTabProps> = ({
               {sch.replace('_', ' ')}
             </button>
           ))}
+        </div>
+
+        {/* Outlier Filter */}
+        <div className="flex items-center gap-1.5">
+          <select
+            value={outlierFilter}
+            onChange={(e) => setOutlierFilter(e.target.value as any)}
+            className={`text-xs font-semibold rounded-lg px-2.5 py-1.5 focus:outline-none border ${
+              outlierFilter !== 'ALL'
+                ? 'bg-red-50 border-red-300 text-red-900 font-bold'
+                : 'bg-slate-50 border-slate-300 text-slate-700'
+            }`}
+          >
+            <option value="ALL">All Line Items ({facts.length})</option>
+            <option value="OUTLIERS_ONLY">🚨 Outliers Only ({outlierFacts.length})</option>
+            <option value="HIGH_SEVERITY">⚡ High Severity ({highOutliersCount})</option>
+          </select>
         </div>
 
         {/* Status Filter */}
@@ -336,9 +429,22 @@ export const AiMappingTab: React.FC<AiMappingTabProps> = ({
                         )}
                       </td>
 
-                      {/* Variance */}
+                      {/* Variance & Outlier Tag */}
                       <td className="py-2.5 px-3 text-center">
-                        {variance ? (
+                        {fact.anomaly?.isAnomaly ? (
+                          <button
+                            onClick={() => setSelectedAnomalyFact(fact)}
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border transition-transform hover:scale-105 shadow-xs ${
+                              fact.anomaly.severity === 'HIGH'
+                                ? 'bg-red-100 text-red-900 border-red-300'
+                                : 'bg-amber-100 text-amber-900 border-amber-300'
+                            }`}
+                            title={`${fact.anomaly.message}\nClick for statutory auditor review guidance`}
+                          >
+                            <AlertTriangle className="w-3 h-3 text-red-600 flex-shrink-0" />
+                            <span>{fact.anomaly.pctChange > 0 ? '+' : ''}{fact.anomaly.pctChange}% Outlier</span>
+                          </button>
+                        ) : variance ? (
                           <span className={`text-[11px] font-mono font-bold ${
                             Math.abs(variance.pct) > 20 
                               ? 'text-amber-600' 
@@ -353,7 +459,17 @@ export const AiMappingTab: React.FC<AiMappingTabProps> = ({
 
                       {/* Status */}
                       <td className="py-2.5 px-3 text-center">
-                        {getStatusBadge(fact.status)}
+                        {fact.anomaly?.isAnomaly ? (
+                          <span 
+                            onClick={() => setSelectedAnomalyFact(fact)}
+                            className="bg-red-50 text-red-800 border border-red-200 text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 cursor-pointer hover:bg-red-100 transition-colors"
+                            title="Auditor Review Required due to detected outlier trend"
+                          >
+                            <AlertTriangle className="w-2.5 h-2.5 text-red-600" /> Review Outlier
+                          </span>
+                        ) : (
+                          getStatusBadge(fact.status)
+                        )}
                       </td>
 
                       {/* Source */}
@@ -417,6 +533,17 @@ export const AiMappingTab: React.FC<AiMappingTabProps> = ({
         allFacts={facts}
         onSelectFact={setSelectedHistoryFact}
         onRevertFact={handleRevertFact}
+      />
+
+      {/* Outlier & Anomaly Review Modal */}
+      <AnomalyReviewModal
+        fact={selectedAnomalyFact}
+        onClose={() => setSelectedAnomalyFact(null)}
+        onAcceptValue={handleAcceptAnomalyValue}
+        onStartEdit={(f) => {
+          setSelectedAnomalyFact(null);
+          startEdit(f);
+        }}
       />
 
     </div>

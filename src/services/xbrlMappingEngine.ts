@@ -1,5 +1,6 @@
 import { MappedFact, TaxonomyStandard, UploadedDocument } from '../types';
 import { getTaxonomyConcepts } from './taxonomyData';
+import { detectFactAnomaly } from './anomalyDetectionEngine';
 
 // Generates robust default initial mapping data for the selected taxonomy standard
 export function generateInitialFacts(standard: TaxonomyStandard): MappedFact[] {
@@ -569,26 +570,32 @@ export function generateInitialFacts(standard: TaxonomyStandard): MappedFact[] {
     ];
   }
 
-  return facts.map(f => ({
-    ...f,
-    sagFieldId: f.sagFieldId || getDefaultSagFieldId(f.conceptName, f.schedule),
-    sagScreenRef: f.sagScreenRef || getDefaultSagScreenRef(f.schedule, f.conceptName),
-    history: f.history && f.history.length > 0 ? f.history : [
-      {
-        id: `hist-init-${f.id}`,
-        factId: f.id,
-        timestamp: new Date(Date.now() - 3600000).toISOString(),
-        type: 'AI_INITIAL_EXTRACTION',
-        author: 'AI Agent',
-        previousValue: f.previousValue,
-        newValue: f.currentValue,
-        newConcept: f.conceptName,
-        notes: `AI auto-extracted from ${f.sourceDoc || 'Financial Statements'} (${f.confidence}% confidence)`,
-        sourceDoc: f.sourceDoc,
-        confidence: f.confidence
-      }
-    ]
-  }));
+  return facts.map(f => {
+    const anomaly = detectFactAnomaly(f);
+    return {
+      ...f,
+      sagFieldId: f.sagFieldId || getDefaultSagFieldId(f.conceptName, f.schedule),
+      sagScreenRef: f.sagScreenRef || getDefaultSagScreenRef(f.schedule, f.conceptName),
+      anomaly,
+      status: anomaly && anomaly.severity === 'HIGH' ? ('REVIEW_REQUIRED' as const) : f.status,
+      reviewNotes: anomaly ? anomaly.message : f.reviewNotes,
+      history: f.history && f.history.length > 0 ? f.history : [
+        {
+          id: `hist-init-${f.id}`,
+          factId: f.id,
+          timestamp: new Date(Date.now() - 3600000).toISOString(),
+          type: 'AI_INITIAL_EXTRACTION',
+          author: 'AI Agent',
+          previousValue: f.previousValue,
+          newValue: f.currentValue,
+          newConcept: f.conceptName,
+          notes: `AI auto-extracted from ${f.sourceDoc || 'Financial Statements'} (${f.confidence}% confidence)${anomaly ? ` [${anomaly.type}]` : ''}`,
+          sourceDoc: f.sourceDoc,
+          confidence: f.confidence
+        }
+      ]
+    };
+  });
 }
 
 // Automatically maps uploaded documents against the previous-year XBRL reference
@@ -646,8 +653,15 @@ export function mapDocumentsToTaxonomy(
       }
     }
 
-    // Flag large shifts
-    if (typeof fact.previousValue === 'number' && typeof fact.currentValue === 'number') {
+    // Flag large shifts and anomalies
+    const anomaly = detectFactAnomaly(fact);
+    if (anomaly) {
+      fact.anomaly = anomaly;
+      if (anomaly.severity === 'HIGH') {
+        fact.status = 'REVIEW_REQUIRED';
+      }
+      fact.reviewNotes = anomaly.message;
+    } else if (typeof fact.previousValue === 'number' && typeof fact.currentValue === 'number') {
       const pct = Math.abs((fact.currentValue - fact.previousValue) / (fact.previousValue || 1));
       if (pct > 0.40) {
         fact.status = 'REVIEW_REQUIRED';

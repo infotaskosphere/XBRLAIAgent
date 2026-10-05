@@ -45,6 +45,17 @@ export interface XbrlConcept {
 
 export type MappingStatus = 'CONFIRMED' | 'CHANGED' | 'REVIEW_REQUIRED' | 'NEW_ITEM' | 'SOURCE_CONFLICT';
 
+export type AnomalySeverity = 'HIGH' | 'MEDIUM' | 'LOW' | 'NORMAL';
+
+export interface AnomalyAlert {
+  isAnomaly: boolean;
+  severity: AnomalySeverity;
+  type: 'GROWTH_SPIKE' | 'ABRUPT_DROP' | 'SIGN_INVERSION' | 'NEW_MATERIAL_ITEM' | 'THRESHOLD_BREACH';
+  pctChange: number;
+  message: string;
+  recommendedAction: string;
+}
+
 export interface FactHistoryEntry {
   id: string;
   factId: string;
@@ -81,6 +92,7 @@ export interface MappedFact {
   sagFieldId?: string;
   sagScreenRef?: string;
   history?: FactHistoryEntry[];
+  anomaly?: AnomalyAlert;
 }
 
 export interface SagExportOptions {
