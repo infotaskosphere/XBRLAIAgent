@@ -33,6 +33,7 @@ public sealed class GeminiAiService
         string previousReference,
         string previousFinancialPdf,
         string previousAuditPdf,
+        IReadOnlyList<string> previousSupportingPaths,
         IReadOnlyList<string> currentPdfPaths,
         CancellationToken cancellationToken = default)
     {
@@ -43,17 +44,26 @@ public sealed class GeminiAiService
 
         try
         {
-            uploaded.Add(await UploadPdfAsync(previousFinancialPdf, cancellationToken));
-            uploaded.Add(await UploadPdfAsync(previousAuditPdf, cancellationToken));
+            uploaded.Add(await UploadDocumentAsync(previousFinancialPdf, cancellationToken));
+            uploaded.Add(await UploadDocumentAsync(previousAuditPdf, cancellationToken));
+
+            foreach (var previousSupporting in previousSupportingPaths.Where(File.Exists).Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                if (IsPdf(previousSupporting))
+                    uploaded.Add(await UploadDocumentAsync(previousSupporting, cancellationToken));
+            }
 
             foreach (var currentPdf in currentPdfPaths.Where(File.Exists).Distinct(StringComparer.OrdinalIgnoreCase))
-                uploaded.Add(await UploadPdfAsync(currentPdf, cancellationToken));
+                uploaded.Add(await UploadDocumentAsync(currentPdf, cancellationToken));
 
             var documentList = new List<string>
             {
                 "1. PREVIOUS-YEAR FINANCIAL / XBRL PDF — reference evidence only.",
                 "2. PREVIOUS-YEAR AUDIT REPORT — reference evidence only."
             };
+
+            foreach (var previousSupporting in previousSupportingPaths.Where(File.Exists).Distinct(StringComparer.OrdinalIgnoreCase))
+                documentList.Add($"{documentList.Count + 1}. PREVIOUS-YEAR SUPPORTING DOCUMENT — reference evidence only: {Path.GetFileName(previousSupporting)}");
 
             for (var i = 0; i < currentPdfPaths.Count; i++)
             {
@@ -108,20 +118,35 @@ PREVIOUS-YEAR XBRL/XAG STRUCTURAL REFERENCE:
         }
     }
 
-    private async Task<(string Name, string Uri)> UploadPdfAsync(string path, CancellationToken cancellationToken)
+    private static bool IsPdf(string path) =>
+        string.Equals(Path.GetExtension(path), ".pdf", StringComparison.OrdinalIgnoreCase);
+
+    private static string GetMimeType(string path) =>
+        Path.GetExtension(path).ToLowerInvariant() switch
+        {
+            ".pdf" => "application/pdf",
+            ".txt" => "text/plain",
+            ".csv" => "text/csv",
+            ".xml" => "application/xml",
+            ".doc" => "application/msword",
+            ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            _ => "application/octet-stream"
+        };
+
+    private async Task<(string Name, string Uri)> UploadDocumentAsync(string path, CancellationToken cancellationToken)
     {
         if (!File.Exists(path))
-            throw new FileNotFoundException("PDF not found.", path);
+            throw new FileNotFoundException("Document not found.", path);
 
         var fileInfo = new FileInfo(path);
         if (fileInfo.Length == 0)
-            throw new InvalidOperationException($"The PDF is empty: {Path.GetFileName(path)}");
+            throw new InvalidOperationException($"The document is empty: {Path.GetFileName(path)}");
 
-        const long maxPdfBytes = 50L * 1024L * 1024L;
-        if (fileInfo.Length > maxPdfBytes)
-            throw new InvalidOperationException($"PDF is larger than 50 MB and cannot be sent by this document workflow: {Path.GetFileName(path)}");
+        const long maxFileBytes = 50L * 1024L * 1024L;
+        if (fileInfo.Length > maxFileBytes)
+            throw new InvalidOperationException($"Document is larger than 50 MB and cannot be sent by this workflow: {Path.GetFileName(path)}");
 
-        var mimeType = "application/pdf";
+        var mimeType = GetMimeType(path);
         var startUrl = "https://generativelanguage.googleapis.com/upload/v1beta/files";
 
         using var start = new HttpRequestMessage(HttpMethod.Post, startUrl);
@@ -157,7 +182,7 @@ PREVIOUS-YEAR XBRL/XAG STRUCTURAL REFERENCE:
         var uploadBody = await uploadResponse.Content.ReadAsStringAsync(cancellationToken);
 
         if (!uploadResponse.IsSuccessStatusCode)
-            throw new InvalidOperationException($"Gemini PDF upload failed ({(int)uploadResponse.StatusCode}): {uploadBody}");
+            throw new InvalidOperationException($"Gemini document upload failed ({(int)uploadResponse.StatusCode}): {uploadBody}");
 
         using var json = JsonDocument.Parse(uploadBody);
         var file = json.RootElement.GetProperty("file");
@@ -209,9 +234,9 @@ PREVIOUS-YEAR XBRL/XAG STRUCTURAL REFERENCE:
         IReadOnlyList<(string Name, string Uri)> files,
         CancellationToken cancellationToken)
     {
-        // Use Google's current Interactions API for multimodal document input.
-        // This avoids the legacy generateContent file_data path that can return
-        // 400 INVALID_ARGUMENT even when the uploaded Gemini File is ACTIVE.
+        // Keep this request deliberately close to Google's documented REST
+        // example: model + input only. Extra generation fields can cause
+        // INVALID_REQUEST responses when a model/API revision changes.
         var input = new List<object>
         {
             new
@@ -236,12 +261,7 @@ PREVIOUS-YEAR XBRL/XAG STRUCTURAL REFERENCE:
         var payload = new
         {
             model = settings.GeminiModel,
-            input = input.ToArray(),
-            generation_config = new
-            {
-                temperature = 0.1,
-                max_output_tokens = 16000
-            }
+            input = input.ToArray()
         };
 
         using var request = new HttpRequestMessage(HttpMethod.Post, url);
@@ -262,33 +282,10 @@ PREVIOUS-YEAR XBRL/XAG STRUCTURAL REFERENCE:
         {
             if ((int)response.StatusCode == 429)
             {
-                var retryHint = "";
-                try
-                {
-                    using var quotaJson = JsonDocument.Parse(body);
-                    if (quotaJson.RootElement.TryGetProperty("error", out var error) &&
-                        error.TryGetProperty("details", out var details))
-                    {
-                        foreach (var detail in details.EnumerateArray())
-                        {
-                            if (detail.TryGetProperty("retryDelay", out var retryDelay))
-                            {
-                                retryHint = retryDelay.GetString() ?? "";
-                                break;
-                            }
-                        }
-                    }
-                }
-                catch { }
-
-                var waitText = string.IsNullOrWhiteSpace(retryHint)
-                    ? "a short period"
-                    : retryHint;
-
                 throw new InvalidOperationException(
-                    "Gemini free-tier input quota was exceeded for this mapping request. " +
-                    $"The application has compacted the XBRL reference to keep requests smaller. Please wait {waitText} and run the mapping again. " +
-                    "If the error persists, use the AI Settings connection test first.");
+                    "Gemini quota was exceeded for this mapping request. " +
+                    "The XBRL reference is compacted and documents are uploaded through the Files API. " +
+                    "Wait briefly and run the mapping again.");
             }
 
             throw new InvalidOperationException(
@@ -303,9 +300,7 @@ PREVIOUS-YEAR XBRL/XAG STRUCTURAL REFERENCE:
     {
         if (root.TryGetProperty("output_text", out var outputText) &&
             outputText.ValueKind == JsonValueKind.String)
-        {
             return outputText.GetString() ?? "";
-        }
 
         var builder = new StringBuilder();
 
