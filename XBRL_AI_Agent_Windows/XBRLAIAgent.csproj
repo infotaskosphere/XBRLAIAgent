@@ -8,6 +8,7 @@
     <AssemblyName>XBRLAIAgent</AssemblyName>
     <RootNamespace>XBRLAIAgent</RootNamespace>
     <Platforms>AnyCPU</Platforms>
+    <ApplicationIcon>XBRLAIAgent.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="UglyToad.PdfPig" Version="1.7.0-custom-5" />
