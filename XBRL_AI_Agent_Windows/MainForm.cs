@@ -206,6 +206,11 @@ public sealed class MainForm : Form
         connect.Click += (_, _) => DetectGenXbrl();
         toolbar.Controls.Add(connect);
 
+        var aiSettings = SecondaryButton("AI SETTINGS", 130);
+        aiSettings.Location = new Point(375, 9);
+        aiSettings.Click += (_, _) => ShowAiSettings();
+        toolbar.Controls.Add(aiSettings);
+
         aiStatus.AutoSize = false;
         aiStatus.Width = 520;
         aiStatus.Height = 32;
@@ -305,6 +310,8 @@ public sealed class MainForm : Form
         pick.Click += (_, _) => action();
         row.Controls.Add(box);
         row.Controls.Add(pick);
+        EnableFileDrop(box, GetAllowedExtensions(label));
+        EnableFileDrop(row, GetAllowedExtensions(label));
         parent.Controls.Add(row);
     }
 
@@ -331,6 +338,54 @@ public sealed class MainForm : Form
         FlatStyle = FlatStyle.Flat,
         Cursor = Cursors.Hand
     };
+
+    private static string[] GetAllowedExtensions(string label)
+    {
+        if (label.Contains("XML", StringComparison.OrdinalIgnoreCase))
+            return new[] { ".xml", ".xag", ".zip" };
+
+        if (label.Contains("AUDIT", StringComparison.OrdinalIgnoreCase) ||
+            label.Contains("FINANCIAL", StringComparison.OrdinalIgnoreCase))
+            return new[] { ".pdf", ".docx", ".doc", ".txt" };
+
+        return Array.Empty<string>();
+    }
+
+    private static void EnableFileDrop(Control control, string[] extensions)
+    {
+        if (extensions.Length == 0) return;
+
+        control.AllowDrop = true;
+        control.DragEnter += (_, e) =>
+        {
+            if (e.Data?.GetDataPresent(DataFormats.FileDrop) == true)
+            {
+                var files = (string[])e.Data.GetData(DataFormats.FileDrop)!;
+                e.Effect = files.Length == 1 &&
+                           extensions.Contains(Path.GetExtension(files[0]), StringComparer.OrdinalIgnoreCase)
+                    ? DragDropEffects.Copy
+                    : DragDropEffects.None;
+            }
+        };
+        control.DragDrop += (_, e) =>
+        {
+            if (e.Data?.GetDataPresent(DataFormats.FileDrop) != true) return;
+            var files = (string[])e.Data.GetData(DataFormats.FileDrop)!;
+            if (files.Length != 1) return;
+
+            var path = files[0];
+            if (!extensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
+                return;
+
+            if (control is TextBox box)
+                box.Text = path;
+            else
+            {
+                var boxChild = control.Controls.OfType<TextBox>().FirstOrDefault();
+                if (boxChild != null) boxChild.Text = path;
+            }
+        };
+    }
 
     private void PickXml()
     {
@@ -605,8 +660,8 @@ public sealed class MainForm : Form
     private void UpdateAiStatus()
     {
         aiStatus.Text = ai.IsConfigured
-            ? $"● AI READY   {settings.GeminiModel}"
-            : "○ AI NOT CONFIGURED   Add a Gemini API key in AI Settings";
+            ? $"● AI READY   {settings.AiProvider}"
+            : "○ AI NOT CONNECTED   Click AI SETTINGS to connect";
         aiStatus.ForeColor = ai.IsConfigured ? Color.FromArgb(23, 143, 88) : Color.FromArgb(196, 125, 20);
     }
 
