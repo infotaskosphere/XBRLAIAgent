@@ -427,16 +427,21 @@ public sealed class MainForm : Form
             progress.Value = 10;
             var reference = await Task.Run(() => BuildReferenceSummary(source));
             progress.Value = 35;
-            var previousFinancialText = await Task.Run(() => DocumentService.ExtractPdfText(previousPdf.Text, 80000));
-            progress.Value = 45;
-            var previousAuditText = await Task.Run(() => DocumentService.ExtractPdfText(previousAuditReport.Text, 60000));
-            progress.Value = 55;
-            var currentText = await Task.Run(() => DocumentService.ExtractPdfText(currentPdf.Text, 120000));
-            progress.Value = 65;
-            status.Text = "AI is comparing current evidence with the previous structure...";
+            status.Text = "Uploading previous financial PDF to Gemini...";
             status.ForeColor = Blue;
 
-            var result = await ai.GenerateMappingAsync(reference, previousFinancialText, previousAuditText, currentText);
+            progress.Value = 45;
+            status.Text = "Uploading previous audit report to Gemini...";
+
+            progress.Value = 55;
+            status.Text = "Uploading current audit report and analysing scanned pages...";
+
+            var result = await ai.GenerateMappingAsync(
+                reference,
+                previousPdf.Text,
+                previousAuditReport.Text,
+                currentPdf.Text);
+
             progress.Value = 100;
             analysis.Text = result;
             status.Text = "AI mapping completed — review before any write/import";
