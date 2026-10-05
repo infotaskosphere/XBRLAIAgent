@@ -1,0 +1,7 @@
+{
+  "name": "XBRL AI Agent — Gen XBRL Automation",
+  "description": "Intelligent XBRL tagging, previous-year mapping, and automated data generation for SAG Gen XBRL supporting both Ind AS and Non-Ind AS taxonomies with multi-document PDF, Excel, and Word analysis.",
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
