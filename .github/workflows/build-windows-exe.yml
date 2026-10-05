@@ -23,6 +23,21 @@ jobs:
       - name: Restore
         run: dotnet restore XBRLAIAgent.csproj
 
+      - name: Compile diagnostic
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          dotnet build XBRLAIAgent.csproj -c Release --no-restore *> build-diagnostic.log
+          Get-Content build-diagnostic.log
+
+      - name: Upload compile diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xbrl-ai-build-diagnostic
+          path: XBRL_AI_Agent_Windows/build-diagnostic.log
+          if-no-files-found: warn
+
       - name: Publish self-contained single EXE
         run: >
           dotnet publish XBRLAIAgent.csproj
