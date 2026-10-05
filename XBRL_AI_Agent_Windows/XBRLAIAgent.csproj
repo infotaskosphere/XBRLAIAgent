@@ -9,4 +9,7 @@
     <RootNamespace>XBRLAIAgent</RootNamespace>
     <Platforms>AnyCPU</Platforms>
   </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="UglyToad.PdfPig" Version="0.1.9" />
+  </ItemGroup>
 </Project>
