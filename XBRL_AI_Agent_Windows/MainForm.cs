@@ -506,7 +506,7 @@ public sealed class MainForm : Form
 
     private void PickXml()
     {
-        using var d = new OpenFileDialog { Title = "Select Previous Year XBRL XML", Filter = "XML files (*.xml)|*.xml|All files (*.*)|*.*" };
+        using var d = new OpenFileDialog { Title = "Select Previous Year XBRL / XAG / ZIP", Filter = "XBRL files (*.xml;*.xag;*.zip)|*.xml;*.xag;*.zip|XML files (*.xml)|*.xml|XAG files (*.xag)|*.xag|ZIP files (*.zip)|*.zip|All files (*.*)|*.*" };
         if (d.ShowDialog() == DialogResult.OK) previousXml.Text = d.FileName;
     }
 
