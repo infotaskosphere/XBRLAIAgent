@@ -9,6 +9,8 @@ import { DocumentPreviewModal } from './components/DocumentPreviewModal';
 import { SettingsModal } from './components/SettingsModal';
 import { LoginPage } from './components/LoginPage';
 import { TaxonomyStandard, UploadedDocument, FileRole, MappedFact, AiSettings, UserProfile } from './types';
+import { Sidebar, AppSection } from './components/Sidebar';
+import { ExecutiveSummaryPanel } from './components/ExecutiveSummaryPanel';
 import { PreviousYearReference } from './services/previousYearTaggingEngine';
 import { parseUploadedFile } from './services/documentParser';
 import { mapDocumentsToTaxonomy, generateInitialFacts } from './services/xbrlMappingEngine';
@@ -26,7 +28,7 @@ export const App: React.FC = () => {
     });
     return unsubscribe;
   }, []);
-  const [activeTab, setActiveTab] = useState<'CURRENT' | 'PREVIOUS' | 'MAPPING' | 'SAG' | 'LIBRARY'>('CURRENT');
+  const [activeTab, setActiveTab] = useState<AppSection>('DASHBOARD');
   const [taxonomy, setTaxonomy] = useState<TaxonomyStandard>('IND_AS');
   
   const [currentDocuments, setCurrentDocuments] = useState<UploadedDocument[]>([]);
@@ -180,14 +182,6 @@ export const App: React.FC = () => {
     showToast('info', 'SAG Gen XBRL detected at C:\\Program Files\\SAG Infotech\\GenXBRL\\ (Auto-write ready)');
   };
 
-  const tabList = [
-    { id: 'CURRENT', step: '01', title: 'CURRENT YEAR', badge: currentDocuments.length },
-    { id: 'PREVIOUS', step: '02', title: 'PREVIOUS REFERENCE', badge: previousDocuments.length },
-    { id: 'MAPPING', step: '03', title: 'AI MAPPING & COMPARISON', badge: facts.length },
-    { id: 'SAG', step: '04', title: 'SAG GEN XBRL AUTOWRITER', highlight: true },
-    { id: 'LIBRARY', step: '05', title: '📚 MUST-READ GUIDES', count: '6' }
-  ];
-
   return (
     <div className="min-h-screen flex flex-col bg-[#f7f9fc]">
       
@@ -205,100 +199,92 @@ export const App: React.FC = () => {
         onSignOut={handleSignOut}
       />
 
-      {/* Tab Navigation Ribbon */}
-      <div className="bg-white border-b border-slate-200 sticky top-[68px] z-30 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center space-x-1 sm:space-x-2 overflow-x-auto py-2">
-            {tabList.map(tab => {
-              const active = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex items-center gap-2 px-3.5 py-2.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all border ${
-                    active
-                      ? 'bg-[#071b36] text-white border-[#071b36] shadow-sm'
-                      : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border-slate-200'
-                  }`}
-                >
-                  <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded ${
-                    active ? 'bg-[#12cbe6] text-[#071b36]' : 'bg-slate-200 text-slate-700'
-                  }`}>
-                    {tab.step}
-                  </span>
-                  <span>{tab.title}</span>
-                  {tab.badge !== undefined && tab.badge > 0 && (
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${
-                      active ? 'bg-[#145ca8] text-white' : 'bg-blue-100 text-[#145ca8]'
-                    }`}>
-                      {tab.badge}
-                    </span>
-                  )}
-                  {tab.highlight && (
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+      <div className="flex flex-1 min-w-0">
+        <Sidebar
+          activeSection={activeTab}
+          onNavigate={setActiveTab}
+          currentCount={currentDocuments.length}
+          previousCount={previousDocuments.length}
+          mappingCount={facts.length}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+        />
+
+        {/* Main workspace */}
+        <main className="flex-1 min-w-0 px-4 sm:px-6 lg:px-8 py-6">
+          {activeTab === 'DASHBOARD' && (
+            <div className="max-w-[1400px] mx-auto">
+              <ExecutiveSummaryPanel
+                facts={facts}
+                taxonomy={taxonomy}
+                onNavigateToMapping={() => setActiveTab('MAPPING')}
+                onNavigateToSag={() => setActiveTab('SAG')}
+              />
+            </div>
+          )}
+
+          {activeTab === 'CURRENT' && (
+            <div className="max-w-[1400px] mx-auto">
+              <CurrentYearTab
+                showSources={showCurrentSources}
+                onShowSources={() => setShowCurrentSources(true)}
+                documents={currentDocuments}
+                onUpload={handleUpload}
+                onRemove={handleRemoveDoc}
+                onPreview={setPreviewDoc}
+                onAnalyze={handleRunMapping}
+                isProcessing={isProcessing}
+                facts={facts}
+                taxonomy={taxonomy}
+                onNavigateToMapping={() => setActiveTab('MAPPING')}
+                onNavigateToSag={() => setActiveTab('SAG')}
+              />
+            </div>
+          )}
+
+          {activeTab === 'PREVIOUS' && (
+            <div className="max-w-[1400px] mx-auto">
+              <PreviousYearTab
+                documents={previousDocuments}
+                onUpload={handleUpload}
+                onRemove={handleRemoveDoc}
+                onPreview={setPreviewDoc}
+                onBuildReference={handleRunMapping}
+                isProcessing={isProcessing}
+                reference={previousYearReference}
+              />
+            </div>
+          )}
+
+          {activeTab === 'MAPPING' && (
+            <div className="max-w-[1400px] mx-auto">
+              <AiMappingTab
+                facts={facts}
+                taxonomy={taxonomy}
+                onUpdateFact={handleUpdateFact}
+                onRunMapping={handleRunMapping}
+                isProcessing={isProcessing}
+                onNavigateToSag={() => setActiveTab('SAG')}
+              />
+            </div>
+          )}
+
+          {activeTab === 'SAG' && (
+            <div className="max-w-[1400px] mx-auto">
+              <SagGenXbrlTab
+                facts={facts}
+                taxonomy={taxonomy}
+                onUpdateFact={handleUpdateFact}
+              />
+            </div>
+          )}
+
+          {activeTab === 'LIBRARY' && (
+            <div className="max-w-[1400px] mx-auto">
+              <RegulatoryLibraryTab />
+            </div>
+          )}
+        </main>
       </div>
-
-      {/* Main Tab Content */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {activeTab === 'CURRENT' && (
-          <CurrentYearTab
-            showSources={showCurrentSources}
-            onShowSources={() => setShowCurrentSources(true)}
-            documents={currentDocuments}
-            onUpload={handleUpload}
-            onRemove={handleRemoveDoc}
-            onPreview={setPreviewDoc}
-            onAnalyze={handleRunMapping}
-            isProcessing={isProcessing}
-            facts={facts}
-            taxonomy={taxonomy}
-            onNavigateToMapping={() => setActiveTab('MAPPING')}
-            onNavigateToSag={() => setActiveTab('SAG')}
-          />
-        )}
-
-        {activeTab === 'PREVIOUS' && (
-          <PreviousYearTab
-            documents={previousDocuments}
-            onUpload={handleUpload}
-            onRemove={handleRemoveDoc}
-            onPreview={setPreviewDoc}
-            onBuildReference={handleRunMapping}
-            isProcessing={isProcessing}
-            reference={previousYearReference}
-          />
-        )}
-
-        {activeTab === 'MAPPING' && (
-          <AiMappingTab
-            facts={facts}
-            taxonomy={taxonomy}
-            onUpdateFact={handleUpdateFact}
-            onRunMapping={handleRunMapping}
-            isProcessing={isProcessing}
-            onNavigateToSag={() => setActiveTab('SAG')}
-          />
-        )}
-
-        {activeTab === 'SAG' && (
-          <SagGenXbrlTab
-            facts={facts}
-            taxonomy={taxonomy}
-            onUpdateFact={handleUpdateFact}
-          />
-        )}
-
-        {activeTab === 'LIBRARY' && (
-          <RegulatoryLibraryTab />
-        )}
-      </main>
-
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 animate-bounce">
