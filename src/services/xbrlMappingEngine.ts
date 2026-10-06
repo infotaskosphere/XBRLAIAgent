@@ -605,7 +605,19 @@ export function mapDocumentsToTaxonomy(
   previousDocs: UploadedDocument[],
   standard: TaxonomyStandard,
   existingFacts: MappedFact[]
-): { mappedFacts: MappedFact[]; stats: { total: number; confirmed: number; changed: number; reviewRequired: number; mathBalanced: boolean } } {
+): {
+  mappedFacts: MappedFact[];
+  previousYearReference: PreviousYearReference;
+  stats: {
+    total: number;
+    confirmed: number;
+    changed: number;
+    reviewRequired: number;
+    mathBalanced: boolean;
+    previousYearCoverage: number;
+    previousYearConflicts: number;
+  };
+} {
   const currentTextCombined = currentDocs.map(d => `${d.name}:\n${d.extractedText}`).join('\n\n');
   
   // Clone existing facts or generate base
