@@ -108,16 +108,6 @@ export const Header: React.FC<HeaderProps> = ({
                       <User className="w-3.5 h-3.5 text-[#145ca8]" />
                       <span>Switch Auditor / Manage Account</span>
                     </button>
-                    <button
-                      onClick={() => {
-                        setUserMenuOpen(false);
-                        onOpenLogin();
-                      }}
-                      className="w-full px-4 py-2 text-left text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2 font-medium"
-                    >
-                      <Database className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>MongoDB & Storage Settings</span>
-                    </button>
                   </div>
 
                   <div className="border-t border-slate-100 pt-1">
