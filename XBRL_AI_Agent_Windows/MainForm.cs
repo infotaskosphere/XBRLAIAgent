@@ -1802,28 +1802,63 @@ public sealed class MainForm : Form
             return;
         }
 
-        progress.Value = 45;
-        status.Text = "Running AI mapping engine against MCA taxonomy...";
-        await Task.Delay(600);
+        var currentPaths = new[] { currentPdf.Text, currentFinancialPdf.Text, currentSupportingPdf.Text }
+            .Where(File.Exists)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
-        progress.Value = 100;
-        RefreshMappingGrid();
-        RefreshSagFieldGrid();
+        if (currentPaths.Length == 0)
+        {
+            progress.Value = 0;
+            MessageBox.Show("Please select at least one current-year document before running AI mapping.", "Current-Year Evidence Required", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        progress.Value = 45;
+        status.Text = "Running Gemini AI mapping against current-year evidence and previous-year structure...";
 
         var referenceText = previousYearReference == null
-            ? "No previous-year evidence loaded"
-            : $"PY coverage {previousYearReference.Coverage:F1}% ({previousYearReference.Tags.Count} tags)";
+            ? "No previous-year structured reference was loaded."
+            : string.Join(Environment.NewLine, previousYearReference.Tags.Select(tag =>
+                $"{tag.conceptName} | {tag.label} | PY={tag.value} | {tag.method} | {tag.sourceDoc} | {tag.sourceLocation}"));
 
-        status.Text = $"AI mapping completed • {referenceText}";
-        MessageBox.Show(
-            $"AI mapping completed successfully!\\r\\n\\r\\n" +
-            $"Previous-year reference: {referenceText}\\r\\n" +
-            "Verified concepts, variances, and SAG Gen XBRL field linkages.",
-            "Mapping Complete",
-            MessageBoxButtons.OK,
-            MessageBoxIcon.Information);
+        try
+        {
+            var aiResult = await ai.GenerateMappingAsync(
+                referenceText,
+                File.Exists(previousPdf.Text) ? previousPdf.Text : string.Empty,
+                File.Exists(previousAuditReport.Text) ? previousAuditReport.Text : string.Empty,
+                previousSupportingDocuments.Select(box => box.Text).Where(File.Exists).ToArray(),
+                currentPaths);
+
+            progress.Value = 100;
+            RefreshMappingGrid();
+            RefreshSagFieldGrid();
+
+            var pySummary = previousYearReference == null
+                ? "No previous-year evidence loaded"
+                : $"PY coverage {previousYearReference.Coverage:F1}% ({previousYearReference.Tags.Count} tags)";
+
+            status.Text = $"AI review completed • {pySummary}";
+            MessageBox.Show(
+                "Gemini AI review completed successfully.\r\n\r\n" +
+                "The result is shown below for auditor review. Current-year figures are not copied from prior-year evidence automatically.\r\n\r\n" +
+                aiResult,
+                "AI Mapping Review",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            progress.Value = 0;
+            status.Text = "AI mapping failed — evidence mapping remains available for manual review.";
+            MessageBox.Show(
+                "Gemini AI mapping could not be completed. No current-year values were fabricated or overwritten.\r\n\r\n" + ex.Message,
+                "AI Mapping Error",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
     }
-
     private static DateTime? GetContextEndDate(XElement context)
     {
         var instant = context.Descendants().FirstOrDefault(x => x.Name.LocalName == "instant");
