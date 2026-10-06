@@ -46,6 +46,45 @@ export function generateInitialFacts(standard: TaxonomyStandard): MappedFact[] {
   });
 }
 
+function parseEvidenceNumber(raw: string): number | null {
+  let value = String(raw || '').trim().replace(/₹/g, '').replace(/INR/gi, '').replace(/Rs\.?/gi, '').replace(/,/g, '').trim();
+  if (value.startsWith('(') && value.endsWith(')')) value = '-' + value.slice(1, -1).trim();
+  if (!/^-?\d+(?:\.\d+)?$/.test(value)) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizedEvidenceLabel(value: string): string {
+  return String(value || '').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function findCurrentEvidence(fact: MappedFact, docs: UploadedDocument[]): { value: number; sourceDoc: string; sourceLocation: string; confidence: number } | null {
+  const aliases = [fact.label, fact.conceptName.split(':').pop() || fact.conceptName].map(normalizedEvidenceLabel).filter(Boolean);
+  for (const doc of docs) {
+    for (const table of doc.extractedTables || []) {
+      for (let rowIndex = 0; rowIndex < table.rows.length; rowIndex += 1) {
+        const row = table.rows[rowIndex] || [];
+        const rowText = row.map(cell => String(cell ?? '')).join(' | ');
+        if (!aliases.some(alias => normalizedEvidenceLabel(rowText).includes(alias))) continue;
+        const numeric = row.map(cell => parseEvidenceNumber(String(cell ?? ''))).filter((v): v is number => v !== null);
+        if (numeric.length) return { value: numeric[numeric.length - 1], sourceDoc: doc.name, sourceLocation: table.sheetName ? table.sheetName + ' • Row ' + (rowIndex + 2) : 'Table Row ' + (rowIndex + 2), confidence: 97 };
+      }
+    }
+  }
+  for (const doc of docs) {
+    const text = doc.extractedText || '';
+    for (const alias of aliases) {
+      const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\// Automatically maps uploaded documents against the previous-year XBRL reference');
+      const expression = new RegExp(escaped + '[^\\n\\r0-9()\\-]{0,50}(-?\\(?[0-9][0-9,]*(?:\\.[0-9]+)?\\)?)', 'i');
+      const match = text.match(expression);
+      if (!match?.[1]) continue;
+      const value = parseEvidenceNumber(match[1]);
+      if (value !== null) return { value, sourceDoc: doc.name, sourceLocation: 'Extracted document text', confidence: 91 };
+    }
+  }
+  return null;
+}
+
 // Automatically maps uploaded documents against the previous-year XBRL reference
 export function mapDocumentsToTaxonomy(
   currentDocs: UploadedDocument[],
@@ -82,20 +121,17 @@ export function mapDocumentsToTaxonomy(
   );
   facts = applyPreviousYearReference(facts, previousYearReference);
 
-  // Scan current documents for potential values
+  // Scan current-year evidence only. Previous-year values are never used as CY evidence.
   facts.forEach(fact => {
-    // Check if label appears in text
-    const labelRegex = new RegExp(`${fact.label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^0-9\\n]{1,30}([0-9,]+(?:\\.[0-9]+)?)`, 'i');
-    const match = currentTextCombined.match(labelRegex);
-    if (match && match[1]) {
-      const cleanNum = Number(match[1].replace(/,/g, ''));
-      if (!isNaN(cleanNum) && cleanNum > 0) {
-        fact.currentValue = cleanNum;
-        fact.confidence = 94;
-        fact.status = fact.previousValue === fact.currentValue ? 'CONFIRMED' : 'CHANGED';
-      }
+    const evidence = findCurrentEvidence(fact, currentDocs);
+    if (evidence) {
+      fact.currentValue = evidence.value;
+      fact.sourceDoc = evidence.sourceDoc;
+      fact.sourcePageOrSheet = evidence.sourceLocation;
+      fact.confidence = evidence.confidence;
+      fact.status = fact.previousValue === fact.currentValue ? 'CONFIRMED' : 'CHANGED';
+      fact.reviewNotes = 'Current-year value extracted from uploaded evidence; verify against the source document.';
     }
-
     // Flag large shifts and anomalies
     const anomaly = detectFactAnomaly(fact);
     if (anomaly) {
