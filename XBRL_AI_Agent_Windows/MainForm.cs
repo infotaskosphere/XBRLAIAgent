@@ -1824,25 +1824,6 @@ public sealed class MainForm : Form
             MessageBoxIcon.Information);
     }
 
-    private async Task RunAiMappingAsync()
-    {
-        if (!ai.IsConfigured)
-        {
-            ShowAiSettings();
-            return;
-        }
-
-        progress.Value = 30;
-        status.Text = "Running AI mapping engine against MCA taxonomy...";
-        await Task.Delay(600);
-
-        progress.Value = 100;
-        RefreshMappingGrid();
-        RefreshSagFieldGrid();
-        status.Text = "AI mapping completed • Verified 22 financial statement facts";
-        MessageBox.Show("AI mapping completed successfully! Verified concepts, variances, and SAG Gen XBRL field linkages.", "Mapping Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
-    }
-
     private static DateTime? GetContextEndDate(XElement context)
     {
         var instant = context.Descendants().FirstOrDefault(x => x.Name.LocalName == "instant");
