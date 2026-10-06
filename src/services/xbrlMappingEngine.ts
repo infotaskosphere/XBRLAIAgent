@@ -74,7 +74,7 @@ function findCurrentEvidence(fact: MappedFact, docs: UploadedDocument[]): { valu
   for (const doc of docs) {
     const text = doc.extractedText || '';
     for (const alias of aliases) {
-      const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\// Automatically maps uploaded documents against the previous-year XBRL reference');
+      const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const expression = new RegExp(escaped + '[^\\n\\r0-9()\\-]{0,50}(-?\\(?[0-9][0-9,]*(?:\\.[0-9]+)?\\)?)', 'i');
       const match = text.match(expression);
       if (!match?.[1]) continue;
