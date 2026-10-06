@@ -49,7 +49,8 @@ export function generateSagXagContent(facts: MappedFact[], options: SagExportOpt
   <AutomationBridge>
     <SagAutoFillEnabled>true</SagAutoFillEnabled>
     <PreservePriorYearDimensions>true</PreservePriorYearDimensions>
-    <DirectDatabaseWriteSupported>true</DirectDatabaseWriteSupported>
+    <DirectDatabaseWriteSupported>false</DirectDatabaseWriteSupported>
+    <DirectLocalWindowsAgentRequired>true</DirectLocalWindowsAgentRequired>
   </AutomationBridge>
 </SAGGenXBRLExport>`;
 
