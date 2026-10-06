@@ -55,6 +55,7 @@ public sealed class MainForm : Form
     private readonly Button btnUser = new();
     private TaxonomyStandard currentTaxonomy = TaxonomyStandard.IndAS;
     private List<MappedFact> currentFacts = new();
+    private PreviousYearReference? previousYearReference;
 
     // Colors
     private readonly Color Navy = Color.FromArgb(7, 27, 54);
@@ -95,36 +96,40 @@ public sealed class MainForm : Form
 
     private void BuildShell()
     {
-        // Header intentionally mirrors the approved web preview so the Windows
-        // EXE and browser UI present the same product surface.
-        var header = new Panel
+        // TableLayoutPanel is intentional: WinForms DockStyle ordering can
+        // otherwise let the fill panel cover the left-side brand panels.
+        var header = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
-            Height = 104,
+            Height = 98,
             BackColor = Navy,
-            Padding = new Padding(16, 10, 16, 10)
+            ColumnCount = 4,
+            RowCount = 1,
+            Padding = new Padding(12, 8, 12, 8)
         };
 
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 180));
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 190));
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 310));
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+
         var brand = new Panel
-        {
-            Dock = DockStyle.Left,
-            Width = 205,
-            BackColor = Color.FromArgb(8, 31, 60)
-        };
-        var logo = new LogoControl
         {
             Dock = DockStyle.Fill,
             BackColor = Color.FromArgb(8, 31, 60)
         };
-        brand.Controls.Add(logo);
-        header.Controls.Add(brand);
+        brand.Controls.Add(new LogoControl
+        {
+            Dock = DockStyle.Fill,
+            BackColor = Color.FromArgb(8, 31, 60)
+        });
+        header.Controls.Add(brand, 0, 0);
 
         var bridge = new Panel
         {
-            Dock = DockStyle.Left,
-            Width = 220,
+            Dock = DockStyle.Fill,
             BackColor = Navy,
-            Padding = new Padding(14, 10, 8, 0)
+            Padding = new Padding(12, 8, 6, 0)
         };
         bridge.Controls.Add(new Label
         {
@@ -132,44 +137,45 @@ public sealed class MainForm : Form
             ForeColor = Color.FromArgb(165, 197, 235),
             Font = new Font("Segoe UI Semibold", 9f, FontStyle.Bold),
             AutoSize = true,
-            Location = new Point(0, 8)
+            Location = new Point(0, 5)
         });
         bridge.Controls.Add(new Label
         {
             Text = "Reference-aware preparation • SAG automation",
             ForeColor = Color.FromArgb(214, 225, 239),
-            Font = new Font("Segoe UI", 7.6f),
-            AutoSize = true,
-            Location = new Point(0, 30)
+            Font = new Font("Segoe UI", 7.3f),
+            AutoSize = false,
+            Width = 175,
+            Height = 34,
+            Location = new Point(0, 28)
         });
-        header.Controls.Add(bridge);
+        header.Controls.Add(bridge, 1, 0);
 
         var titlePanel = new Panel
         {
-            Dock = DockStyle.Left,
-            Width = 330,
+            Dock = DockStyle.Fill,
             BackColor = Navy,
-            Padding = new Padding(8, 2, 8, 0)
+            Padding = new Padding(6, 4, 6, 0)
         };
         titlePanel.Controls.Add(new Label
         {
             Text = "XBRL AI Automation Engine",
             ForeColor = Color.White,
-            Font = new Font("Segoe UI Semibold", 14.5f, FontStyle.Bold),
+            Font = new Font("Segoe UI Semibold", 14.2f, FontStyle.Bold),
             AutoSize = true,
-            Location = new Point(0, 8)
+            Location = new Point(0, 4)
         });
         titlePanel.Controls.Add(new Label
         {
             Text = "MCA Taxonomy (Ind AS / AS 2021) • Intelligent SAG Gen XBRL Direct Autowriter",
             ForeColor = Color.FromArgb(177, 202, 229),
-            Font = new Font("Segoe UI", 7.8f),
+            Font = new Font("Segoe UI", 7.5f),
             AutoSize = false,
-            Width = 318,
-            Height = 35,
-            Location = new Point(0, 38)
+            Width = 298,
+            Height = 36,
+            Location = new Point(0, 34)
         });
-        header.Controls.Add(titlePanel);
+        header.Controls.Add(titlePanel, 2, 0);
 
         var controls = new FlowLayoutPanel
         {
@@ -178,7 +184,7 @@ public sealed class MainForm : Form
             FlowDirection = FlowDirection.LeftToRight,
             WrapContents = false,
             AutoScroll = true,
-            Padding = new Padding(4, 12, 0, 0)
+            Padding = new Padding(4, 10, 0, 0)
         };
 
         controls.Controls.Add(new Label
@@ -187,19 +193,19 @@ public sealed class MainForm : Form
             ForeColor = Color.FromArgb(141, 177, 219),
             Font = new Font("Segoe UI Semibold", 8f, FontStyle.Bold),
             AutoSize = true,
-            Margin = new Padding(2, 10, 3, 0)
+            Margin = new Padding(0, 10, 3, 0)
         });
 
         var btnIndAs = new Button
         {
             Text = "Ind AS",
-            Width = 68,
+            Width = 66,
             Height = 30,
             FlatStyle = FlatStyle.Flat,
             BackColor = Blue,
             ForeColor = Color.White,
             Font = new Font("Segoe UI Semibold", 7.7f, FontStyle.Bold),
-            Margin = new Padding(0, 5, 2, 0),
+            Margin = new Padding(0, 4, 2, 0),
             Cursor = Cursors.Hand
         };
         btnIndAs.FlatAppearance.BorderSize = 0;
@@ -218,13 +224,13 @@ public sealed class MainForm : Form
         var btnNonIndAs = new Button
         {
             Text = "Non-Ind AS",
-            Width = 84,
+            Width = 82,
             Height = 30,
             FlatStyle = FlatStyle.Flat,
             BackColor = Color.FromArgb(11, 36, 71),
             ForeColor = Color.White,
             Font = new Font("Segoe UI Semibold", 7.7f, FontStyle.Bold),
-            Margin = new Padding(0, 5, 7, 0),
+            Margin = new Padding(0, 4, 5, 0),
             Cursor = Cursors.Hand
         };
         btnNonIndAs.FlatAppearance.BorderColor = Color.FromArgb(30, 70, 119);
@@ -248,8 +254,8 @@ public sealed class MainForm : Form
             FlatStyle = FlatStyle.Flat,
             BackColor = Color.FromArgb(15, 46, 86),
             ForeColor = Color.White,
-            Font = new Font("Segoe UI Semibold", 7.8f, FontStyle.Bold),
-            Margin = new Padding(0, 5, 5, 0),
+            Font = new Font("Segoe UI Semibold", 7.6f, FontStyle.Bold),
+            Margin = new Padding(0, 4, 5, 0),
             Cursor = Cursors.Hand
         };
         detect.FlatAppearance.BorderColor = Color.FromArgb(35, 83, 140);
@@ -260,10 +266,10 @@ public sealed class MainForm : Form
         aiStatus.Width = 88;
         aiStatus.Height = 30;
         aiStatus.TextAlign = ContentAlignment.MiddleCenter;
-        aiStatus.Font = new Font("Segoe UI Semibold", 7.7f, FontStyle.Bold);
+        aiStatus.Font = new Font("Segoe UI Semibold", 7.6f, FontStyle.Bold);
         aiStatus.BackColor = Color.FromArgb(64, 48, 8);
         aiStatus.ForeColor = Color.FromArgb(251, 191, 36);
-        aiStatus.Margin = new Padding(0, 5, 5, 0);
+        aiStatus.Margin = new Padding(0, 4, 5, 0);
         aiStatus.Cursor = Cursors.Hand;
         aiStatus.Click += (_, _) => ShowAiSettings();
         controls.Controls.Add(aiStatus);
@@ -271,53 +277,51 @@ public sealed class MainForm : Form
         var runMapping = new Button
         {
             Text = "✣ Run Mapping",
-            Width = 102,
+            Width = 100,
             Height = 30,
             FlatStyle = FlatStyle.Flat,
             BackColor = Blue,
             ForeColor = Color.White,
-            Font = new Font("Segoe UI Semibold", 7.9f, FontStyle.Bold),
-            Margin = new Padding(0, 5, 5, 0),
+            Font = new Font("Segoe UI Semibold", 7.8f, FontStyle.Bold),
+            Margin = new Padding(0, 4, 5, 0),
             Cursor = Cursors.Hand
         };
         runMapping.FlatAppearance.BorderSize = 0;
         runMapping.Click += async (_, _) => await RunAiMappingAsync();
         controls.Controls.Add(runMapping);
 
-        btnUser.Width = 156;
+        btnUser.Width = 150;
         btnUser.Height = 30;
         btnUser.FlatStyle = FlatStyle.Flat;
         btnUser.BackColor = Color.FromArgb(13, 42, 79);
         btnUser.ForeColor = Color.White;
-        btnUser.Font = new Font("Segoe UI Semibold", 7.8f);
+        btnUser.Font = new Font("Segoe UI Semibold", 7.7f);
         btnUser.Cursor = Cursors.Hand;
         btnUser.FlatAppearance.BorderColor = Color.FromArgb(35, 83, 140);
         btnUser.Click += (_, _) => ShowLogin();
-        btnUser.Margin = new Padding(0, 5, 5, 0);
+        btnUser.Margin = new Padding(0, 4, 5, 0);
         controls.Controls.Add(btnUser);
 
         var settingsButton = new Button
         {
             Text = "⚙",
-            Width = 36,
+            Width = 34,
             Height = 30,
             FlatStyle = FlatStyle.Flat,
             BackColor = Color.FromArgb(15, 46, 86),
             ForeColor = Color.White,
             Font = new Font("Segoe UI", 11, FontStyle.Bold),
             Cursor = Cursors.Hand,
-            Margin = new Padding(0, 5, 0, 0),
+            Margin = new Padding(0, 4, 0, 0),
             TabStop = false
         };
         settingsButton.FlatAppearance.BorderColor = Color.FromArgb(35, 83, 140);
         settingsButton.Click += (_, _) => ShowAiSettings();
         controls.Controls.Add(settingsButton);
 
-        header.Controls.Add(controls);
-
+        header.Controls.Add(controls, 3, 0);
         Controls.Add(header);
 
-        // Bottom status strip
         var footer = new Panel
         {
             Dock = DockStyle.Bottom,
@@ -365,15 +369,57 @@ public sealed class MainForm : Form
         {
             var page = tabs.TabPages[e.Index];
             var selected = e.Index == tabs.SelectedIndex;
-            var rect = e.Bounds;
-            using var bg = new SolidBrush(selected ? Color.White : Color.FromArgb(239, 243, 248));
-            e.Graphics.FillRectangle(bg, rect);
-            TextRenderer.DrawText(e.Graphics, page.Text, new Font("Segoe UI Semibold", 9.2f), rect, selected ? Navy : Color.FromArgb(92, 104, 120), TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
-            if (selected)
-            {
-                using var pen = new Pen(Cyan, 3);
-                e.Graphics.DrawLine(pen, rect.Left + 10, rect.Bottom - 2, rect.Right - 10, rect.Bottom - 2);
-            }
+            var rect = Rectangle.Inflate(e.Bounds, -4, -5);
+            var outerRadius = 12;
+
+            using var path = new GraphicsPath();
+            var d = outerRadius * 2;
+            path.AddArc(rect.X, rect.Y, d, d, 180, 90);
+            path.AddArc(rect.Right - d, rect.Y, d, d, 270, 90);
+            path.AddArc(rect.Right - d, rect.Bottom - d, d, d, 0, 90);
+            path.AddArc(rect.X, rect.Bottom - d, d, d, 90, 90);
+            path.CloseFigure();
+
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+
+            using var fill = new SolidBrush(selected ? Navy : Color.FromArgb(239, 244, 249));
+            e.Graphics.FillPath(fill, path);
+
+            using var border = new Pen(selected ? Navy : Color.FromArgb(219, 227, 236), 1);
+            e.Graphics.DrawPath(border, path);
+
+            var parts = page.Text.Split(new[] { "  " }, 2, StringSplitOptions.None);
+            var stepText = parts.Length > 1 ? parts[0] : (e.Index + 1).ToString("00");
+            var titleText = parts.Length > 1 ? parts[1] : page.Text;
+
+            var badgeRect = new Rectangle(rect.X + 10, rect.Y + 8, 28, rect.Height - 16);
+            using var badgePath = new GraphicsPath();
+            var bd = 8 * 2;
+            badgePath.AddArc(badgeRect.X, badgeRect.Y, bd, bd, 180, 90);
+            badgePath.AddArc(badgeRect.Right - bd, badgeRect.Y, bd, bd, 270, 90);
+            badgePath.AddArc(badgeRect.Right - bd, badgeRect.Bottom - bd, bd, bd, 0, 90);
+            badgePath.AddArc(badgeRect.X, badgeRect.Bottom - bd, bd, bd, 90, 90);
+            badgePath.CloseFigure();
+
+            using var badgeFill = new SolidBrush(selected ? Cyan : Color.FromArgb(220, 228, 238));
+            e.Graphics.FillPath(badgeFill, badgePath);
+
+            TextRenderer.DrawText(
+                e.Graphics,
+                stepText,
+                new Font("Segoe UI Semibold", 8f, FontStyle.Bold),
+                badgeRect,
+                selected ? Navy : Color.FromArgb(92, 104, 120),
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+
+            var titleRect = new Rectangle(badgeRect.Right + 8, rect.Y + 5, rect.Width - (badgeRect.Right - rect.X) - 16, rect.Height - 10);
+            TextRenderer.DrawText(
+                e.Graphics,
+                titleText,
+                new Font("Segoe UI Semibold", 8.4f, FontStyle.Bold),
+                titleRect,
+                selected ? Color.White : Color.FromArgb(51, 65, 85),
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
         };
 
         var tabCurrent = new TabPage("01  CURRENT YEAR") { BackColor = Surface };
@@ -1649,63 +1695,133 @@ public sealed class MainForm : Form
 
     private void AnalyzePreviousYear()
     {
-        var source = previousXml.Text;
-        if (!File.Exists(source))
+        var paths = GetPreviousReferencePaths();
+
+        if (paths.Count == 0)
         {
-            MessageBox.Show("Please select the previous-year XBRL/XML or XAG file first.", "Input Required", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(
+                "Please select at least one previous-year reference document.",
+                "Input Required",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
             return;
         }
 
         try
         {
-            progress.Value = 20;
-            var doc = XDocument.Load(source, LoadOptions.PreserveWhitespace);
-            var elements = doc.Descendants().Where(e => !e.HasElements).ToList();
-            var contexts = doc.Descendants().Where(e => e.Name.LocalName == "context").ToList();
+            progress.Value = 15;
+            status.Text = "Reading previous-year XBRL/XML and reference documents...";
 
-            var contextDates = contexts
-                .Select(GetContextEndDate)
-                .Where(d => d != null)
-                .Select(d => d!.Value)
-                .Distinct()
-                .OrderByDescending(d => d)
-                .ToList();
+            previousYearReference = PreviousYearTaggingEngine.Build(currentFacts, paths);
+            PreviousYearTaggingEngine.Apply(currentFacts, previousYearReference);
 
-            // Fixed: Use nullable DateTime? properly to avoid CS0472 warnings
-            DateTime? currentDate = contextDates.Count > 0 ? contextDates[0] : null;
-            DateTime? previousDate = contextDates.Count > 1 ? contextDates[1] : null;
-
-            var currentContexts = currentDate == null ? 0 : contexts.Count(c => GetContextEndDate(c) == currentDate);
-            var previousContexts = previousDate == null ? 0 : contexts.Count(c => GetContextEndDate(c) == previousDate);
+            AnomalyDetectionEngine.RunDetection(currentFacts);
+            RefreshMappingGrid();
+            RefreshSagFieldGrid();
 
             progress.Value = 100;
-            status.Text = $"Previous-year reference map ready ({elements.Count} elements detected)";
+            status.Text =
+                $"Previous-year tagging complete • {previousYearReference.Tags.Count}/{currentFacts.Count} facts tagged ({previousYearReference.Coverage:F1}% coverage)";
+
+            if (previousYearReference.ConflictCount > 0 || previousYearReference.Warnings.Count > 0)
+            {
+                var detail =
+                    $"Tagged facts: {previousYearReference.Tags.Count}/{currentFacts.Count}\\r\\n" +
+                    $"XBRL facts: {previousYearReference.XbrlFactCount}\\r\\n" +
+                    $"Text/table facts: {previousYearReference.TextFactCount}\\r\\n" +
+                    $"Contexts parsed: {previousYearReference.ContextCount}\\r\\n" +
+                    $"Conflicts: {previousYearReference.ConflictCount}\\r\\n" +
+                    $"Warnings: {previousYearReference.Warnings.Count}";
+
+                MessageBox.Show(
+                    detail,
+                    "Previous-Year Reference Result",
+                    MessageBoxButtons.OK,
+                    previousYearReference.ConflictCount > 0
+                        ? MessageBoxIcon.Warning
+                        : MessageBoxIcon.Information);
+            }
+
             tabs.SelectedIndex = 2;
         }
         catch (Exception ex)
         {
             progress.Value = 0;
-            MessageBox.Show("Could not parse previous-year reference.\r\n" + ex.Message, "Parse Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(
+                "Could not build the previous-year reference map.\\r\\n" + ex.Message,
+                "Reference Mapping Error",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
         }
+    }
+
+    private List<string> GetPreviousReferencePaths()
+    {
+        var paths = new List<string>();
+
+        foreach (var candidate in new[]
+        {
+            previousXml.Text,
+            previousPdf.Text,
+            previousAuditReport.Text
+        })
+        {
+            if (File.Exists(candidate))
+                paths.Add(candidate);
+        }
+
+        paths.AddRange(
+            previousSupportingDocuments
+                .Select(box => box.Text)
+                .Where(File.Exists));
+
+        return paths
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     private async Task RunAiMappingAsync()
     {
+        var paths = GetPreviousReferencePaths();
+
+        if (paths.Count > 0)
+        {
+            progress.Value = 20;
+            status.Text = "Tagging previous-year evidence before AI mapping...";
+
+            previousYearReference = PreviousYearTaggingEngine.Build(currentFacts, paths);
+            PreviousYearTaggingEngine.Apply(currentFacts, previousYearReference);
+            RefreshMappingGrid();
+            RefreshSagFieldGrid();
+        }
+
         if (!ai.IsConfigured)
         {
+            progress.Value = 0;
             ShowAiSettings();
             return;
         }
 
-        progress.Value = 30;
+        progress.Value = 45;
         status.Text = "Running AI mapping engine against MCA taxonomy...";
         await Task.Delay(600);
 
         progress.Value = 100;
         RefreshMappingGrid();
         RefreshSagFieldGrid();
-        status.Text = "AI mapping completed • Verified 22 financial statement facts";
-        MessageBox.Show("AI mapping completed successfully! Verified concepts, variances, and SAG Gen XBRL field linkages.", "Mapping Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+        var referenceText = previousYearReference == null
+            ? "No previous-year evidence loaded"
+            : $"PY coverage {previousYearReference.Coverage:F1}% ({previousYearReference.Tags.Count} tags)";
+
+        status.Text = $"AI mapping completed • {referenceText}";
+        MessageBox.Show(
+            $"AI mapping completed successfully!\\r\\n\\r\\n" +
+            $"Previous-year reference: {referenceText}\\r\\n" +
+            "Verified concepts, variances, and SAG Gen XBRL field linkages.",
+            "Mapping Complete",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Information);
     }
 
     private static DateTime? GetContextEndDate(XElement context)
