@@ -9,6 +9,7 @@ import { DocumentPreviewModal } from './components/DocumentPreviewModal';
 import { SettingsModal } from './components/SettingsModal';
 import { LoginPage } from './components/LoginPage';
 import { TaxonomyStandard, UploadedDocument, FileRole, MappedFact, AiSettings, UserProfile } from './types';
+import { PreviousYearReference } from './services/previousYearTaggingEngine';
 import { parseUploadedFile } from './services/documentParser';
 import { mapDocumentsToTaxonomy, generateInitialFacts } from './services/xbrlMappingEngine';
 import { getCurrentSession, clearSession } from './services/authService';
@@ -31,6 +32,7 @@ export const App: React.FC = () => {
   const [currentDocuments, setCurrentDocuments] = useState<UploadedDocument[]>([]);
   const [previousDocuments, setPreviousDocuments] = useState<UploadedDocument[]>([]);
   const [facts, setFacts] = useState<MappedFact[]>(() => generateInitialFacts('IND_AS'));
+  const [previousYearReference, setPreviousYearReference] = useState<PreviousYearReference | null>(null);
   
   const [isProcessing, setIsProcessing] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<UploadedDocument | null>(null);
@@ -118,13 +120,14 @@ export const App: React.FC = () => {
   const handleRunMapping = () => {
     setIsProcessing(true);
     setTimeout(() => {
-      const { mappedFacts, stats } = mapDocumentsToTaxonomy(
+      const { mappedFacts, previousYearReference: reference, stats } = mapDocumentsToTaxonomy(
         currentDocuments,
         previousDocuments,
         taxonomy,
         facts
       );
       setFacts(mappedFacts);
+      setPreviousYearReference(reference);
       setIsProcessing(false);
       showToast('success', `Mapping complete: ${stats.total} facts verified, ${stats.confirmed} confirmed!`);
       setActiveTab('MAPPING');
@@ -268,6 +271,7 @@ export const App: React.FC = () => {
             onPreview={setPreviewDoc}
             onBuildReference={handleRunMapping}
             isProcessing={isProcessing}
+            reference={previousYearReference}
           />
         )}
 
