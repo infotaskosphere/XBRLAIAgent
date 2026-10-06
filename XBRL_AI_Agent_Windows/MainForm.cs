@@ -469,14 +469,14 @@ public sealed class MainForm : Form
         metrics.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25f));
 
         var totalFacts = currentFacts.Count;
-        var confirmed = currentFacts.Count(f => f.Status == MappingStatus.Confirmed);
-        var changed = currentFacts.Count(f => f.Status == MappingStatus.Changed);
-        var review = currentFacts.Count(f => f.Status == MappingStatus.ReviewRequired);
+        var confirmed = currentFacts.Count(f => f.Status == MappingStatus.CONFIRMED);
+        var changed = currentFacts.Count(f => f.Status == MappingStatus.CHANGED);
+        var review = currentFacts.Count(f => f.Status == MappingStatus.REVIEW_REQUIRED);
         var bsFacts = currentFacts.Count(f => string.Equals(f.Schedule, "BALANCE_SHEET", StringComparison.OrdinalIgnoreCase));
         var plFacts = currentFacts.Count(f => string.Equals(f.Schedule, "PROFIT_LOSS", StringComparison.OrdinalIgnoreCase));
         var anomalies = currentFacts.Count(f => f.Anomaly != null && f.Anomaly.IsAnomaly);
-        var high = currentFacts.Count(f => f.Anomaly?.Severity == AnomalySeverity.High);
-        var medium = currentFacts.Count(f => f.Anomaly?.Severity == AnomalySeverity.Medium);
+        var high = currentFacts.Count(f => f.Anomaly?.Severity == string.Equals(f.Anomaly?.Severity, "HIGH", StringComparison.OrdinalIgnoreCase));
+        var medium = currentFacts.Count(f => f.Anomaly?.Severity == string.Equals(f.Anomaly?.Severity, "MEDIUM", StringComparison.OrdinalIgnoreCase));
 
         var confidence = totalFacts > 0
             ? Math.Round(currentFacts.Average(f => Math.Max(0, Math.Min(100, f.Confidence))), 1)
