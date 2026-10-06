@@ -77,10 +77,10 @@ export const PreviousYearTab: React.FC<PreviousYearTabProps> = ({
           <div className="flex items-center gap-3">
             <button
               onClick={onBuildReference}
-              disabled={!xmlDoc || isProcessing}
+              disabled={documents.length === 0 || isProcessing}
               className="px-5 py-2.5 bg-[#145ca8] hover:bg-[#186dc4] active:bg-[#114f91] text-white font-bold text-sm rounded-lg shadow-sm transition-all flex items-center gap-2 disabled:opacity-50"
             >
-              <span>{isProcessing ? 'Analyzing XML...' : 'Build Reference Map'}</span>
+              <span>{isProcessing ? 'Tagging Previous-Year Evidence...' : 'Build Reference Map'}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
