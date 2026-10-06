@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import { Upload, FileCode, FileText, Plus, Trash2, Eye, ShieldCheck, CheckCircle2, ArrowRight, Layers, FileSpreadsheet } from 'lucide-react';
 import { UploadedDocument, FileRole } from '../types';
+import { PreviousYearReference } from '../services/previousYearTaggingEngine';
 
 interface PreviousYearTabProps {
   documents: UploadedDocument[];
@@ -9,6 +10,7 @@ interface PreviousYearTabProps {
   onPreview: (doc: UploadedDocument) => void;
   onBuildReference: () => void;
   isProcessing: boolean;
+  reference?: PreviousYearReference | null;
 }
 
 export const PreviousYearTab: React.FC<PreviousYearTabProps> = ({
@@ -17,7 +19,8 @@ export const PreviousYearTab: React.FC<PreviousYearTabProps> = ({
   onRemove,
   onPreview,
   onBuildReference,
-  isProcessing
+  isProcessing,
+  reference
 }) => {
   const xmlInputRef = useRef<HTMLInputElement>(null);
   const financialInputRef = useRef<HTMLInputElement>(null);
@@ -84,6 +87,35 @@ export const PreviousYearTab: React.FC<PreviousYearTabProps> = ({
         </div>
       </div>
 
+      {reference ? (
+        <div className="bg-white rounded-xl border border-emerald-200 shadow-sm p-4">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+            <div>
+              <div className="text-[10px] font-extrabold text-emerald-700 uppercase tracking-wider">Previous-Year Tagging Engine</div>
+              <div className="text-sm font-bold text-[#071b36] mt-1">
+                {reference.tags.length} facts tagged • {reference.coverage.toFixed(1)}% coverage
+              </div>
+              <div className="text-[11px] text-slate-500 mt-1">
+                {reference.xbrlFactCount} XBRL • {reference.tabularFactCount} tabular • {reference.textFactCount} text matches
+                {reference.contexts ? ' • ' + reference.contexts + ' contexts parsed' : ''}
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 text-[10px] font-bold">
+              <span className="px-2 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">Authoritative PY linked</span>
+              {reference.conflicts.length > 0 && (
+                <span className="px-2 py-1 rounded-full bg-red-50 text-red-800 border border-red-200">
+                  {reference.conflicts.length} conflicts
+                </span>
+              )}
+              {reference.warnings.length > 0 && (
+                <span className="px-2 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
+                  {reference.warnings.length} warnings
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
       {/* Main Upload Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         
