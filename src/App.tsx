@@ -12,6 +12,7 @@ import { TaxonomyStandard, UploadedDocument, FileRole, MappedFact, AiSettings, U
 import { PreviousYearReference } from './services/previousYearTaggingEngine';
 import { parseUploadedFile } from './services/documentParser';
 import { mapDocumentsToTaxonomy, generateInitialFacts } from './services/xbrlMappingEngine';
+import { runStructuredAiMapping } from './services/geminiService';
 import { getCurrentSession, clearSession } from './services/authService';
 import { storageWrapper } from './services/storageWrapper';
 import { CheckCircle2, AlertCircle, Info } from 'lucide-react';
@@ -94,16 +95,56 @@ export const App: React.FC = () => {
     showToast('info', 'Document removed');
   };
 
-  const handleRunMapping = () => {
+  const handleRunMapping = async () => {
     setIsProcessing(true);
-    window.setTimeout(() => {
+    try {
       const result = mapDocumentsToTaxonomy(currentDocuments, previousDocuments, taxonomy, facts);
-      setFacts(result.mappedFacts);
+      let mappedFacts = result.mappedFacts;
+
+      if (aiSettings.provider === 'Gemini' && aiSettings.apiKey && currentDocuments.length > 0) {
+        const aiMappings = await runStructuredAiMapping(currentDocuments, previousDocuments, mappedFacts, taxonomy, aiSettings);
+        const byConcept = new Map(aiMappings.map(item => [item.conceptName, item]));
+        mappedFacts = mappedFacts.map(fact => {
+          const ai = byConcept.get(fact.conceptName);
+          if (!ai) return fact;
+          const history = ai.currentValue !== null && ai.currentValue !== fact.currentValue
+            ? [{
+                id: `hist-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+                factId: fact.id,
+                timestamp: new Date().toISOString(),
+                type: 'AI_REMAP' as const,
+                author: 'AI Agent',
+                previousValue: fact.currentValue,
+                newValue: ai.currentValue,
+                notes: ai.reason || 'Structured Gemini evidence mapping',
+                sourceDoc: ai.sourceDoc,
+                confidence: ai.confidence
+              }, ...(fact.history || [])]
+            : (fact.history || []);
+          return {
+            ...fact,
+            currentValue: ai.currentValue,
+            confidence: ai.confidence,
+            status: ai.status,
+            sourceDoc: ai.sourceDoc || fact.sourceDoc,
+            sourcePageOrSheet: ai.sourcePageOrSheet || fact.sourcePageOrSheet,
+            reviewNotes: ai.reason || fact.reviewNotes,
+            history
+          };
+        });
+      }
+
+      setFacts(mappedFacts);
       setPreviousYearReference(result.previousYearReference);
       setIsProcessing(false);
-      showToast('success', `Mapping complete: ${result.stats.total} facts verified, ${result.stats.confirmed} confirmed!`);
+      const confirmed = mappedFacts.filter(f => f.status === 'CONFIRMED').length;
+      const review = mappedFacts.filter(f => f.status === 'REVIEW_REQUIRED' || f.status === 'SOURCE_CONFLICT').length;
+      showToast('success', `Mapping complete: ${confirmed} confirmed, ${review} requiring review.`);
       setActiveTab('MAPPING');
-    }, 600);
+    } catch (error) {
+      setIsProcessing(false);
+      showToast('error', error instanceof Error ? error.message : 'AI mapping failed');
+    }
   };
 
   const handleUpdateFact = (id: string, updated: Partial<MappedFact>, historyMeta?: { reason?: string; isRevert?: boolean; author?: string; revertToEntryId?: string }) => {
