@@ -150,13 +150,14 @@ public static class PreviousYearTaggingEngine
             var textMatch = FindTextMatch(fact, textDocs);
             if (textMatch != null)
             {
+                var matched = textMatch.Value;
                 result.Tags.Add(new PreviousYearTag
                 {
                     ConceptName = fact.ConceptName,
                     Label = fact.Label,
-                    Value = textMatch.Value,
-                    SourceDoc = Path.GetFileName(textMatch.Path),
-                    SourceLocation = textMatch.Location,
+                    Value = matched.Value,
+                    SourceDoc = Path.GetFileName(matched.Path),
+                    SourceLocation = matched.Location,
                     Method = "TEXT_MATCH",
                     Confidence = 88
                 });
