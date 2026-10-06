@@ -473,9 +473,13 @@ export const AiMappingTab: React.FC<AiMappingTabProps> = ({
                       </td>
 
                       {/* Source */}
-                      <td className="py-2.5 px-3 text-slate-500 text-[11px] max-w-[180px] truncate" title={`${fact.sourceDoc} - ${fact.sourcePageOrSheet}`}>
-                        <span className="font-semibold text-slate-700 block truncate">{fact.sourceDoc || 'Direct Master'}</span>
+                      <td className="py-2.5 px-3 text-slate-500 text-[11px] max-w-[220px] truncate"
+                        title={'CY: ' + (fact.sourceDoc || 'Direct Master') + ' - ' + (fact.sourcePageOrSheet || 'Page 1') + ' | PY: ' + (fact.previousSourceDoc || 'Not tagged') + ' - ' + (fact.previousSourcePageOrSheet || 'Not available')}>
+                        <span className="font-semibold text-slate-700 block truncate">CY: {fact.sourceDoc || 'Direct Master'}</span>
                         <span className="text-slate-400 block truncate">{fact.sourcePageOrSheet || 'Page 1'}</span>
+                        {fact.previousSourceDoc && (
+                          <span className="text-amber-700 block truncate">PY: {fact.previousSourceDoc} • {fact.previousSourcePageOrSheet || 'Reference tagged'}</span>
+                        )}
                       </td>
 
                       {/* Action */}
