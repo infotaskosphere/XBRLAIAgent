@@ -35,11 +35,6 @@ const normalize = (value: string) =>
     .replace(/\s+/g, ' ')
     .trim();
 
-const buildAliasPattern = (alias: string) => {
-  const safe = normalize(alias).split(' ').filter(Boolean);
-  return safe.join('\\\\s+').replace(/\\\\s\\+\\\\s/g, '\\\\s+');
-};
-
 const localName = (value: string) => {
   const clean = String(value || '');
   return clean.includes(':') ? clean.split(':').pop() || clean : clean;
@@ -49,13 +44,18 @@ const parseAmount = (value: string): number | string | null => {
   const raw = String(value || '').trim();
   if (!raw) return null;
 
-  const normalized = raw
-    .replace(/₹|INR|Rs\\.?/gi, '')
-    .replace(/\\(([^)]+)\\)/g, '-$1')
+  let normalized = raw
+    .replace(/₹/g, '')
+    .replace(/INR/gi, '')
+    .replace(/Rs\.?/gi, '')
     .replace(/,/g, '')
     .trim();
 
-  if (/^-?\\d+(?:\\.\\d+)?$/.test(normalized)) {
+  if (normalized.startsWith('(') && normalized.endsWith(')')) {
+    normalized = '-' + normalized.slice(1, -1).trim();
+  }
+
+  if (/^-?[0-9]+(?:\.[0-9]+)?$/.test(normalized)) {
     const n = Number(normalized);
     return Number.isFinite(n) ? n : null;
   }
@@ -184,17 +184,18 @@ function extractTabularMatch(doc: UploadedDocument, fact: MappedFact): { value: 
     }
   }
 
-  const normalizedText = normalize(doc.extractedText);
+  const lowerText = doc.extractedText.toLowerCase();
+
   for (const alias of aliases) {
-    const pattern = new RegExp(
-      buildAliasPattern(alias) + '[^0-9\\\\n-]{0,40}(-?\\\\d[\\\\d,]*(?:\\\\.\\\\d+)?)',
-      'i'
-    );
+    const aliasLower = alias.toLowerCase();
+    const index = lowerText.indexOf(aliasLower);
+    if (index < 0) continue;
 
-    const match = doc.extractedText.match(pattern);
-    if (!match?.[1]) continue;
+    const tail = doc.extractedText.slice(index + alias.length, index + alias.length + 100);
+    const match = tail.match(/-?[0-9][0-9,]*(?:\.[0-9]+)?/);
+    if (!match?.[0]) continue;
 
-    const value = parseAmount(match[1]);
+    const value = parseAmount(match[0]);
     if (value !== null) {
       return {
         value,
