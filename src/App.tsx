@@ -36,6 +36,7 @@ export const App: React.FC = () => {
   const [previewDoc, setPreviewDoc] = useState<UploadedDocument | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'info' | 'error'; text: string } | null>(null);
+  const [showCurrentSources, setShowCurrentSources] = useState(false);
 
   const [aiSettings, setAiSettings] = useState<AiSettings>({
     provider: 'Gemini',
@@ -244,6 +245,8 @@ export const App: React.FC = () => {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {activeTab === 'CURRENT' && (
           <CurrentYearTab
+            showSources={showCurrentSources}
+            onShowSources={() => setShowCurrentSources(true)}
             documents={currentDocuments}
             onUpload={handleUpload}
             onRemove={handleRemoveDoc}
