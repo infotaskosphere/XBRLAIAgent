@@ -62,44 +62,46 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button
               key={item.id}
               onClick={() => onNavigate(item.id as AppSection)}
-              className={\`w-full flex items-center gap-3 rounded-xl px-3 py-3 text-left transition-all border \${
+              className={`w-full flex items-center gap-3 rounded-xl px-3 py-3 text-left transition-all border ${
                 active
                   ? 'bg-[#071b36] text-white border-[#071b36] shadow-sm'
                   : 'bg-transparent text-slate-700 border-transparent hover:bg-slate-50 hover:border-slate-200'
-              }\`}
+              }`}
             >
-              <div className={\`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 \${
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
                 active
                   ? 'bg-[#12cbe6] text-[#071b36]'
                   : 'bg-slate-100 text-slate-500'
-              }\`}>
+              }`}>
                 <Icon className="w-4 h-4" />
               </div>
 
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   {item.step && (
-                    <span className={\`text-[9px] font-extrabold tracking-wider \${
+                    <span className={`text-[9px] font-extrabold tracking-wider ${
                       active ? 'text-[#12cbe6]' : 'text-slate-400'
-                    }\`}>
+                    }`}>
                       {item.step}
                     </span>
                   )}
                   <span className="text-xs font-extrabold truncate">{item.title}</span>
                 </div>
                 {item.id === 'DASHBOARD' && (
-                  <div className={\`text-[10px] mt-0.5 \${active ? 'text-slate-300' : 'text-slate-400'}\`}>
+                  <div className={`text-[10px] mt-0.5 ${
+                    active ? 'text-slate-300' : 'text-slate-400'
+                  }`}>
                     Filing health overview
                   </div>
                 )}
               </div>
 
               {badge !== undefined && badge > 0 && (
-                <span className={\`text-[10px] px-2 py-0.5 rounded-full font-extrabold \${
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold ${
                   active
                     ? 'bg-[#145ca8] text-white'
                     : 'bg-blue-50 text-[#145ca8]'
-                }\`}>
+                }`}>
                   {badge}
                 </span>
               )}
