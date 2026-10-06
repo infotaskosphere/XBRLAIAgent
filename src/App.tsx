@@ -230,8 +230,6 @@ export const App: React.FC = () => {
                 isProcessing={isProcessing}
                 facts={facts}
                 taxonomy={taxonomy}
-                onNavigateToMapping={() => setActiveTab('MAPPING')}
-                onNavigateToSag={() => setActiveTab('SAG')}
               />
             </div>
           )}
