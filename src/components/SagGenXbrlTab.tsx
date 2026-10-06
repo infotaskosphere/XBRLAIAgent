@@ -21,10 +21,10 @@ interface SagGenXbrlTabProps {
 
 export const SagGenXbrlTab: React.FC<SagGenXbrlTabProps> = ({ facts, taxonomy, onUpdateFact }) => {
   const [options, setOptions] = useState<SagExportOptions>({
-    companyCin: 'L17110MH1995PLC085000',
-    companyName: 'TASKOSPHERE ENTERPRISE SOLUTIONS LIMITED',
-    yearStartDate: '2023-04-01',
-    yearEndDate: '2024-03-31',
+    companyCin: '',
+    companyName: '',
+    yearStartDate: '',
+    yearEndDate: '',
     taxonomy,
     unitScale: 'LAKHS',
     includeCaro: true,
