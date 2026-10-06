@@ -617,8 +617,8 @@ public sealed class MainForm : Form
         var bsFacts = currentFacts.Count(f => string.Equals(f.Schedule, "BALANCE_SHEET", StringComparison.OrdinalIgnoreCase));
         var plFacts = currentFacts.Count(f => string.Equals(f.Schedule, "PROFIT_LOSS", StringComparison.OrdinalIgnoreCase));
         var anomalies = currentFacts.Count(f => f.Anomaly != null && f.Anomaly.IsAnomaly);
-        var high = currentFacts.Count(f => f.Anomaly?.Severity == string.Equals(f.Anomaly?.Severity, "HIGH", StringComparison.OrdinalIgnoreCase));
-        var medium = currentFacts.Count(f => f.Anomaly?.Severity == string.Equals(f.Anomaly?.Severity, "MEDIUM", StringComparison.OrdinalIgnoreCase));
+        var high = currentFacts.Count(f => string.Equals(f.Anomaly?.Severity, "HIGH", StringComparison.OrdinalIgnoreCase));
+        var medium = currentFacts.Count(f => string.Equals(f.Anomaly?.Severity, "MEDIUM", StringComparison.OrdinalIgnoreCase));
 
         var confidence = totalFacts > 0
             ? Math.Round(currentFacts.Average(f => Math.Max(0, Math.Min(100, f.Confidence))), 1)
