@@ -2,7 +2,7 @@ using System;
 using System.Drawing;
 using System.Windows.Forms;
 
-namespace XBRL_AI_Agent_Windows;
+namespace XBRLAIAgent;
 
 public sealed class LoginForm : Form
 {

@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 
-namespace XBRL_AI_Agent_Windows;
+namespace XBRLAIAgent;
 
 public static class AuthManager
 {
