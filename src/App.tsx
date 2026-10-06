@@ -215,6 +215,8 @@ export const App: React.FC = () => {
               <ExecutiveSummaryPanel
                 facts={facts}
                 taxonomy={taxonomy}
+                onNavigateToMapping={() => setActiveTab('MAPPING')}
+                onNavigateToSag={() => setActiveTab('SAG')}
               />
             </div>
           )}
