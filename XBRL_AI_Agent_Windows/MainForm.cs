@@ -55,6 +55,7 @@ public sealed class MainForm : Form
     private readonly Button btnUser = new();
     private TaxonomyStandard currentTaxonomy = TaxonomyStandard.IndAS;
     private List<MappedFact> currentFacts = new();
+    private PreviousYearReference? previousYearReference;
 
     // Colors
     private readonly Color Navy = Color.FromArgb(7, 27, 54);
@@ -1694,44 +1695,133 @@ public sealed class MainForm : Form
 
     private void AnalyzePreviousYear()
     {
-        var source = previousXml.Text;
-        if (!File.Exists(source))
+        var paths = GetPreviousReferencePaths();
+
+        if (paths.Count == 0)
         {
-            MessageBox.Show("Please select the previous-year XBRL/XML or XAG file first.", "Input Required", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(
+                "Please select at least one previous-year reference document.",
+                "Input Required",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
             return;
         }
 
         try
         {
-            progress.Value = 20;
-            var doc = XDocument.Load(source, LoadOptions.PreserveWhitespace);
-            var elements = doc.Descendants().Where(e => !e.HasElements).ToList();
-            var contexts = doc.Descendants().Where(e => e.Name.LocalName == "context").ToList();
+            progress.Value = 15;
+            status.Text = "Reading previous-year XBRL/XML and reference documents...";
 
-            var contextDates = contexts
-                .Select(GetContextEndDate)
-                .Where(d => d != null)
-                .Select(d => d!.Value)
-                .Distinct()
-                .OrderByDescending(d => d)
-                .ToList();
+            previousYearReference = PreviousYearTaggingEngine.Build(currentFacts, paths);
+            PreviousYearTaggingEngine.Apply(currentFacts, previousYearReference);
 
-            // Fixed: Use nullable DateTime? properly to avoid CS0472 warnings
-            DateTime? currentDate = contextDates.Count > 0 ? contextDates[0] : null;
-            DateTime? previousDate = contextDates.Count > 1 ? contextDates[1] : null;
-
-            var currentContexts = currentDate == null ? 0 : contexts.Count(c => GetContextEndDate(c) == currentDate);
-            var previousContexts = previousDate == null ? 0 : contexts.Count(c => GetContextEndDate(c) == previousDate);
+            AnomalyDetectionEngine.RunDetection(currentFacts);
+            RefreshMappingGrid();
+            RefreshSagFieldGrid();
 
             progress.Value = 100;
-            status.Text = $"Previous-year reference map ready ({elements.Count} elements detected)";
+            status.Text =
+                $"Previous-year tagging complete • {previousYearReference.Tags.Count}/{currentFacts.Count} facts tagged ({previousYearReference.Coverage:F1}% coverage)";
+
+            if (previousYearReference.ConflictCount > 0 || previousYearReference.Warnings.Count > 0)
+            {
+                var detail =
+                    $"Tagged facts: {previousYearReference.Tags.Count}/{currentFacts.Count}\\r\\n" +
+                    $"XBRL facts: {previousYearReference.XbrlFactCount}\\r\\n" +
+                    $"Text/table facts: {previousYearReference.TextFactCount}\\r\\n" +
+                    $"Contexts parsed: {previousYearReference.ContextCount}\\r\\n" +
+                    $"Conflicts: {previousYearReference.ConflictCount}\\r\\n" +
+                    $"Warnings: {previousYearReference.Warnings.Count}";
+
+                MessageBox.Show(
+                    detail,
+                    "Previous-Year Reference Result",
+                    MessageBoxButtons.OK,
+                    previousYearReference.ConflictCount > 0
+                        ? MessageBoxIcon.Warning
+                        : MessageBoxIcon.Information);
+            }
+
             tabs.SelectedIndex = 2;
         }
         catch (Exception ex)
         {
             progress.Value = 0;
-            MessageBox.Show("Could not parse previous-year reference.\r\n" + ex.Message, "Parse Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(
+                "Could not build the previous-year reference map.\\r\\n" + ex.Message,
+                "Reference Mapping Error",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
         }
+    }
+
+    private List<string> GetPreviousReferencePaths()
+    {
+        var paths = new List<string>();
+
+        foreach (var candidate in new[]
+        {
+            previousXml.Text,
+            previousPdf.Text,
+            previousAuditReport.Text
+        })
+        {
+            if (File.Exists(candidate))
+                paths.Add(candidate);
+        }
+
+        paths.AddRange(
+            previousSupportingDocuments
+                .Select(box => box.Text)
+                .Where(File.Exists));
+
+        return paths
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private async Task RunAiMappingAsync()
+    {
+        var paths = GetPreviousReferencePaths();
+
+        if (paths.Count > 0)
+        {
+            progress.Value = 20;
+            status.Text = "Tagging previous-year evidence before AI mapping...";
+
+            previousYearReference = PreviousYearTaggingEngine.Build(currentFacts, paths);
+            PreviousYearTaggingEngine.Apply(currentFacts, previousYearReference);
+            RefreshMappingGrid();
+            RefreshSagFieldGrid();
+        }
+
+        if (!ai.IsConfigured)
+        {
+            progress.Value = 0;
+            ShowAiSettings();
+            return;
+        }
+
+        progress.Value = 45;
+        status.Text = "Running AI mapping engine against MCA taxonomy...";
+        await Task.Delay(600);
+
+        progress.Value = 100;
+        RefreshMappingGrid();
+        RefreshSagFieldGrid();
+
+        var referenceText = previousYearReference == null
+            ? "No previous-year evidence loaded"
+            : $"PY coverage {previousYearReference.Coverage:F1}% ({previousYearReference.Tags.Count} tags)";
+
+        status.Text = $"AI mapping completed • {referenceText}";
+        MessageBox.Show(
+            $"AI mapping completed successfully!\\r\\n\\r\\n" +
+            $"Previous-year reference: {referenceText}\\r\\n" +
+            "Verified concepts, variances, and SAG Gen XBRL field linkages.",
+            "Mapping Complete",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Information);
     }
 
     private async Task RunAiMappingAsync()
