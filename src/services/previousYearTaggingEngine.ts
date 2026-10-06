@@ -35,7 +35,10 @@ const normalize = (value: string) =>
     .replace(/\s+/g, ' ')
     .trim();
 
-const escapeRegExp = (value: string) => value.replace(/[.*+?^{}()|[\]\\]/g, '\\$&');
+const buildAliasPattern = (alias: string) => {
+  const safe = normalize(alias).split(' ').filter(Boolean);
+  return safe.join('\\\\s+').replace(/\\\\s\\+\\\\s/g, '\\\\s+');
+};
 
 const localName = (value: string) => {
   const clean = String(value || '');
@@ -183,13 +186,21 @@ function extractTabularMatch(doc: UploadedDocument, fact: MappedFact): { value: 
 
   const normalizedText = normalize(doc.extractedText);
   for (const alias of aliases) {
-    const pattern = new RegExp(`${escapeRegExp(alias)}[^0-9\\n-]{0,40}(-?\\\\d[\\\\d,]*(?:\\\\.\\\\d+)?)`, 'i');
+    const pattern = new RegExp(
+      buildAliasPattern(alias) + '[^0-9\\\\n-]{0,40}(-?\\\\d[\\\\d,]*(?:\\\\.\\\\d+)?)',
+      'i'
+    );
+
     const match = doc.extractedText.match(pattern);
-    if (match?.[1]) {
-      const value = parseAmount(match[1]);
-      if (value !== null) {
-        return { value, location: 'Extracted document text', confidence: normalizedText.includes(alias) ? 88 : 82 };
-      }
+    if (!match?.[1]) continue;
+
+    const value = parseAmount(match[1]);
+    if (value !== null) {
+      return {
+        value,
+        location: 'Extracted document text',
+        confidence: 88
+      };
     }
   }
 
