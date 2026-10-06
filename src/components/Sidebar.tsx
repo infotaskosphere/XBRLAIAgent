@@ -21,14 +21,20 @@ interface SidebarProps {
   onOpenSettings: () => void;
 }
 
-const items = [
+const items: Array<{
+  id: AppSection;
+  step: string;
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+  highlight?: boolean;
+}> = [
   { id: 'DASHBOARD', step: '', title: 'Dashboard', icon: LayoutDashboard },
   { id: 'CURRENT', step: '01', title: 'Current Year', icon: FileText },
   { id: 'PREVIOUS', step: '02', title: 'Previous Reference', icon: History },
   { id: 'MAPPING', step: '03', title: 'AI Mapping & Comparison', icon: GitCompare },
   { id: 'SAG', step: '04', title: 'SAG Gen XBRL Autowriter', icon: FileOutput, highlight: true },
   { id: 'LIBRARY', step: '05', title: 'Must-Read Guides', icon: BookOpen }
-] as const;
+];
 
 export const Sidebar: React.FC<SidebarProps> = ({
   activeSection,
