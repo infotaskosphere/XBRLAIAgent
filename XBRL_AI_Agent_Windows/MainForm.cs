@@ -95,94 +95,236 @@ public sealed class MainForm : Form
 
     private void BuildShell()
     {
-        var header = new TableLayoutPanel
+        // Header intentionally mirrors the approved web preview so the Windows
+        // EXE and browser UI present the same product surface.
+        var header = new Panel
         {
             Dock = DockStyle.Top,
-            Height = 84,
+            Height = 104,
             BackColor = Navy,
-            ColumnCount = 3,
-            RowCount = 1,
-            Padding = new Padding(12, 0, 12, 0)
+            Padding = new Padding(16, 10, 16, 10)
         };
-        header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 220)); // Logo column
-        header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); // Title column
-        header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize)); // Right panel column
 
-        var logo = new LogoControl { Dock = DockStyle.Fill, BackColor = Navy };
-        header.Controls.Add(logo, 0, 0);
+        var brand = new Panel
+        {
+            Dock = DockStyle.Left,
+            Width = 205,
+            BackColor = Color.FromArgb(8, 31, 60)
+        };
+        var logo = new LogoControl
+        {
+            Dock = DockStyle.Fill,
+            BackColor = Color.FromArgb(8, 31, 60)
+        };
+        brand.Controls.Add(logo);
+        header.Controls.Add(brand);
 
-        var titlePanel = new Panel { Dock = DockStyle.Fill, BackColor = Navy, Padding = new Padding(8, 14, 8, 10) };
-        var title = new Label
+        var bridge = new Panel
+        {
+            Dock = DockStyle.Left,
+            Width = 220,
+            BackColor = Navy,
+            Padding = new Padding(14, 10, 8, 0)
+        };
+        bridge.Controls.Add(new Label
+        {
+            Text = "MCA Autonomous Bridge",
+            ForeColor = Color.FromArgb(165, 197, 235),
+            Font = new Font("Segoe UI Semibold", 9f, FontStyle.Bold),
+            AutoSize = true,
+            Location = new Point(0, 8)
+        });
+        bridge.Controls.Add(new Label
+        {
+            Text = "Reference-aware preparation • SAG automation",
+            ForeColor = Color.FromArgb(214, 225, 239),
+            Font = new Font("Segoe UI", 7.6f),
+            AutoSize = true,
+            Location = new Point(0, 30)
+        });
+        header.Controls.Add(bridge);
+
+        var titlePanel = new Panel
+        {
+            Dock = DockStyle.Left,
+            Width = 330,
+            BackColor = Navy,
+            Padding = new Padding(8, 2, 8, 0)
+        };
+        titlePanel.Controls.Add(new Label
         {
             Text = "XBRL AI Automation Engine",
             ForeColor = Color.White,
-            Font = new Font("Segoe UI Semibold", 15, FontStyle.Bold),
+            Font = new Font("Segoe UI Semibold", 14.5f, FontStyle.Bold),
             AutoSize = true,
-            Location = new Point(4, 14)
-        };
-        titlePanel.Controls.Add(title);
-
-        var subtitle = new Label
+            Location = new Point(0, 8)
+        });
+        titlePanel.Controls.Add(new Label
         {
             Text = "MCA Taxonomy (Ind AS / AS 2021) • Intelligent SAG Gen XBRL Direct Autowriter",
             ForeColor = Color.FromArgb(177, 202, 229),
-            Font = new Font("Segoe UI", 8.8f),
-            AutoSize = true,
-            Location = new Point(6, 44)
-        };
-        titlePanel.Controls.Add(subtitle);
-        header.Controls.Add(titlePanel, 1, 0);
+            Font = new Font("Segoe UI", 7.8f),
+            AutoSize = false,
+            Width = 318,
+            Height = 35,
+            Location = new Point(0, 38)
+        });
+        header.Controls.Add(titlePanel);
 
-        var rightPanel = new FlowLayoutPanel
+        var controls = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
-            FlowDirection = FlowDirection.RightToLeft,
             BackColor = Navy,
+            FlowDirection = FlowDirection.LeftToRight,
             WrapContents = false,
-            Padding = new Padding(0, 18, 0, 0),
-            AutoSize = true
+            AutoScroll = true,
+            Padding = new Padding(4, 12, 0, 0)
         };
 
-        // Auditor User Profile Badge Button
-        btnUser.Width = 190;
-        btnUser.Height = 44;
+        controls.Controls.Add(new Label
+        {
+            Text = "Taxonomy:",
+            ForeColor = Color.FromArgb(141, 177, 219),
+            Font = new Font("Segoe UI Semibold", 8f, FontStyle.Bold),
+            AutoSize = true,
+            Margin = new Padding(2, 10, 3, 0)
+        });
+
+        var btnIndAs = new Button
+        {
+            Text = "Ind AS",
+            Width = 68,
+            Height = 30,
+            FlatStyle = FlatStyle.Flat,
+            BackColor = Blue,
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI Semibold", 7.7f, FontStyle.Bold),
+            Margin = new Padding(0, 5, 2, 0),
+            Cursor = Cursors.Hand
+        };
+        btnIndAs.FlatAppearance.BorderSize = 0;
+        btnIndAs.Click += (_, _) =>
+        {
+            currentTaxonomy = TaxonomyStandard.IndAS;
+            currentFacts = TaxonomyCatalog.GetInitialFacts(currentTaxonomy);
+            AnomalyDetectionEngine.RunDetection(currentFacts);
+            if (taxonomySelector.Items.Count > 0) taxonomySelector.SelectedIndex = 0;
+            RefreshMappingGrid();
+            RefreshSagFieldGrid();
+            status.Text = "Taxonomy switched to MCA Ind AS";
+        };
+        controls.Controls.Add(btnIndAs);
+
+        var btnNonIndAs = new Button
+        {
+            Text = "Non-Ind AS",
+            Width = 84,
+            Height = 30,
+            FlatStyle = FlatStyle.Flat,
+            BackColor = Color.FromArgb(11, 36, 71),
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI Semibold", 7.7f, FontStyle.Bold),
+            Margin = new Padding(0, 5, 7, 0),
+            Cursor = Cursors.Hand
+        };
+        btnNonIndAs.FlatAppearance.BorderColor = Color.FromArgb(30, 70, 119);
+        btnNonIndAs.Click += (_, _) =>
+        {
+            currentTaxonomy = TaxonomyStandard.NonIndAS;
+            currentFacts = TaxonomyCatalog.GetInitialFacts(currentTaxonomy);
+            AnomalyDetectionEngine.RunDetection(currentFacts);
+            if (taxonomySelector.Items.Count > 1) taxonomySelector.SelectedIndex = 1;
+            RefreshMappingGrid();
+            RefreshSagFieldGrid();
+            status.Text = "Taxonomy switched to Non-Ind AS (AS 2021)";
+        };
+        controls.Controls.Add(btnNonIndAs);
+
+        var detect = new Button
+        {
+            Text = "▣ Detect Gen XBRL",
+            Width = 112,
+            Height = 30,
+            FlatStyle = FlatStyle.Flat,
+            BackColor = Color.FromArgb(15, 46, 86),
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI Semibold", 7.8f, FontStyle.Bold),
+            Margin = new Padding(0, 5, 5, 0),
+            Cursor = Cursors.Hand
+        };
+        detect.FlatAppearance.BorderColor = Color.FromArgb(35, 83, 140);
+        detect.Click += (_, _) => DetectGenXbrl();
+        controls.Controls.Add(detect);
+
+        aiStatus.AutoSize = false;
+        aiStatus.Width = 88;
+        aiStatus.Height = 30;
+        aiStatus.TextAlign = ContentAlignment.MiddleCenter;
+        aiStatus.Font = new Font("Segoe UI Semibold", 7.7f, FontStyle.Bold);
+        aiStatus.BackColor = Color.FromArgb(64, 48, 8);
+        aiStatus.ForeColor = Color.FromArgb(251, 191, 36);
+        aiStatus.Margin = new Padding(0, 5, 5, 0);
+        aiStatus.Cursor = Cursors.Hand;
+        aiStatus.Click += (_, _) => ShowAiSettings();
+        controls.Controls.Add(aiStatus);
+
+        var runMapping = new Button
+        {
+            Text = "✣ Run Mapping",
+            Width = 102,
+            Height = 30,
+            FlatStyle = FlatStyle.Flat,
+            BackColor = Blue,
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI Semibold", 7.9f, FontStyle.Bold),
+            Margin = new Padding(0, 5, 5, 0),
+            Cursor = Cursors.Hand
+        };
+        runMapping.FlatAppearance.BorderSize = 0;
+        runMapping.Click += async (_, _) => await RunAiMappingAsync();
+        controls.Controls.Add(runMapping);
+
+        btnUser.Width = 156;
+        btnUser.Height = 30;
         btnUser.FlatStyle = FlatStyle.Flat;
-        btnUser.BackColor = Color.FromArgb(14, 42, 77);
+        btnUser.BackColor = Color.FromArgb(13, 42, 79);
         btnUser.ForeColor = Color.White;
-        btnUser.Font = new Font("Segoe UI Semibold", 8f);
+        btnUser.Font = new Font("Segoe UI Semibold", 7.8f);
         btnUser.Cursor = Cursors.Hand;
-        btnUser.FlatAppearance.BorderColor = Color.FromArgb(35, 78, 128);
+        btnUser.FlatAppearance.BorderColor = Color.FromArgb(35, 83, 140);
         btnUser.Click += (_, _) => ShowLogin();
-        btnUser.Margin = new Padding(6, 0, 0, 0);
-        rightPanel.Controls.Add(btnUser);
+        btnUser.Margin = new Padding(0, 5, 5, 0);
+        controls.Controls.Add(btnUser);
 
         var settingsButton = new Button
         {
-            Text = "⚙ AI SETTINGS",
-            Width = 110,
-            Height = 44,
+            Text = "⚙",
+            Width = 36,
+            Height = 30,
             FlatStyle = FlatStyle.Flat,
-            BackColor = Color.FromArgb(18, 48, 82),
+            BackColor = Color.FromArgb(15, 46, 86),
             ForeColor = Color.White,
-            Font = new Font("Segoe UI Semibold", 8.2f),
+            Font = new Font("Segoe UI", 11, FontStyle.Bold),
             Cursor = Cursors.Hand,
-            Margin = new Padding(6, 0, 0, 0)
+            Margin = new Padding(0, 5, 0, 0),
+            TabStop = false
         };
-        settingsButton.FlatAppearance.BorderColor = Color.FromArgb(46, 83, 121);
+        settingsButton.FlatAppearance.BorderColor = Color.FromArgb(35, 83, 140);
         settingsButton.Click += (_, _) => ShowAiSettings();
-        rightPanel.Controls.Add(settingsButton);
+        controls.Controls.Add(settingsButton);
 
-        aiStatus.AutoSize = true;
-        aiStatus.Font = new Font("Segoe UI Semibold", 8.2f);
-        aiStatus.ForeColor = Color.FromArgb(161, 190, 220);
-        aiStatus.Margin = new Padding(0, 14, 10, 0);
-        rightPanel.Controls.Add(aiStatus);
+        header.Controls.Add(controls);
 
-        header.Controls.Add(rightPanel, 2, 0);
         Controls.Add(header);
 
         // Bottom status strip
-        var footer = new Panel { Dock = DockStyle.Bottom, Height = 32, BackColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
+        var footer = new Panel
+        {
+            Dock = DockStyle.Bottom,
+            Height = 32,
+            BackColor = Color.White,
+            BorderStyle = BorderStyle.FixedSingle
+        };
         progress.Width = 180;
         progress.Height = 16;
         progress.Location = new Point(12, 7);
@@ -196,7 +338,7 @@ public sealed class MainForm : Form
 
         sagStatus.AutoSize = true;
         sagStatus.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-        sagStatus.Location = new Point(Width - 360, 6);
+        sagStatus.Location = new Point(Math.Max(500, ClientSize.Width - 360), 6);
         sagStatus.Text = "SAG Gen XBRL: Scanning...";
         sagStatus.ForeColor = Color.FromArgb(92, 104, 120);
         footer.Controls.Add(sagStatus);
@@ -235,10 +377,10 @@ public sealed class MainForm : Form
         };
 
         var tabCurrent = new TabPage("01  CURRENT YEAR") { BackColor = Surface };
-        var tabPrevious = new TabPage("02  PREVIOUS REF") { BackColor = Surface };
-        var tabMapping = new TabPage("03  AI MAPPING") { BackColor = Surface };
-        var tabSag = new TabPage("04  SAG AUTOWRITER") { BackColor = Surface };
-        var tabGuides = new TabPage("05  📚 GUIDES") { BackColor = Surface };
+        var tabPrevious = new TabPage("02  PREVIOUS REFERENCE") { BackColor = Surface };
+        var tabMapping = new TabPage("03  AI MAPPING & COMPARISON") { BackColor = Surface };
+        var tabSag = new TabPage("04  SAG GEN XBRL AUTOWRITER") { BackColor = Surface };
+        var tabGuides = new TabPage("05  📚 MUST-READ GUIDES") { BackColor = Surface };
 
         BuildCurrentTab(tabCurrent);
         BuildPreviousTab(tabPrevious);
