@@ -14,6 +14,8 @@ interface CurrentYearTabProps {
   taxonomy?: TaxonomyStandard;
   onNavigateToMapping?: () => void;
   onNavigateToSag?: () => void;
+  showSources?: boolean;
+  onShowSources?: () => void;
 }
 
 export const CurrentYearTab: React.FC<CurrentYearTabProps> = ({
@@ -26,7 +28,9 @@ export const CurrentYearTab: React.FC<CurrentYearTabProps> = ({
   facts,
   taxonomy = 'IND_AS',
   onNavigateToMapping,
-  onNavigateToSag
+  onNavigateToSag,
+  showSources = false,
+  onShowSources
 }) => {
   const auditInputRef = useRef<HTMLInputElement>(null);
   const financialInputRef = useRef<HTMLInputElement>(null);
@@ -66,17 +70,28 @@ export const CurrentYearTab: React.FC<CurrentYearTabProps> = ({
 
   return (
     <div className="space-y-6">
-      
-      {/* High-Level Executive Summary Dashboard Panel on Landing Page */}
-      {facts && facts.length > 0 && (
+      {!showSources && facts && facts.length > 0 ? (
         <ExecutiveSummaryPanel
           facts={facts}
           taxonomy={taxonomy}
           onNavigateToMapping={onNavigateToMapping || onAnalyze}
           onNavigateToSag={onNavigateToSag || onAnalyze}
         />
-      )}
+      ) : null}
 
+      {!showSources && (!facts || facts.length === 0) ? (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 text-center">
+          <div className="mx-auto max-w-2xl">
+            <div className="text-xs font-extrabold text-[#12cbe6] uppercase tracking-widest mb-2">Current Year</div>
+            <h2 className="text-2xl font-black text-[#071b36] mb-2">Financial Statement Intelligence & Filing Health</h2>
+            <p className="text-sm text-slate-500 mb-5">Load the current-year evidence set to activate mapping, variance analysis and SAG Gen XBRL generation.</p>
+            <button onClick={onShowSources} className="px-5 py-2.5 bg-[#145ca8] text-white font-bold text-sm rounded-lg">Load Current-Year Sources</button>
+          </div>
+        </div>
+      ) : null}
+
+      {showSources ? (
+      <>
       {/* Hero Banner */}
       <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -386,6 +401,8 @@ export const CurrentYearTab: React.FC<CurrentYearTabProps> = ({
         </div>
       </div>
 
+      </>
+      ) : null}
     </div>
   );
 };
