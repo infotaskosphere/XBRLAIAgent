@@ -158,13 +158,13 @@ export const Header: React.FC<HeaderProps> = ({
               </span>
               <button
                 onClick={() => onTaxonomyChange('IND_AS')}
-                className={\`px-2.5 py-1 text-xs font-bold rounded transition-all \${taxonomy === 'IND_AS' ? 'bg-[#145ca8] text-white shadow-sm' : 'text-slate-300 hover:text-white hover:bg-[#123663]'}\`}
+                className={`px-2.5 py-1 text-xs font-bold rounded transition-all ${taxonomy === 'IND_AS' ? 'bg-[#145ca8] text-white shadow-sm' : 'text-slate-300 hover:text-white hover:bg-[#123663]'}`}
               >
                 MCA Ind AS
               </button>
               <button
                 onClick={() => onTaxonomyChange('NON_IND_AS')}
-                className={\`px-2.5 py-1 text-xs font-bold rounded transition-all \${taxonomy === 'NON_IND_AS' ? 'bg-[#145ca8] text-white shadow-sm' : 'text-slate-300 hover:text-white hover:bg-[#123663]'}\`}
+                className={`px-2.5 py-1 text-xs font-bold rounded transition-all ${taxonomy === 'NON_IND_AS' ? 'bg-[#145ca8] text-white shadow-sm' : 'text-slate-300 hover:text-white hover:bg-[#123663]'}`}
               >
                 Non-Ind AS (AS)
               </button>
@@ -181,10 +181,10 @@ export const Header: React.FC<HeaderProps> = ({
 
             <button
               onClick={onOpenSettings}
-              className={\`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-bold cursor-pointer transition-all shrink-0 \${aiConnected ? 'bg-emerald-950/60 border-emerald-600/70 text-emerald-300 hover:bg-emerald-900/60' : 'bg-amber-950/50 border-amber-600/60 text-amber-300 hover:bg-amber-900/50'}\`}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-bold cursor-pointer transition-all shrink-0 ${aiConnected ? 'bg-emerald-950/60 border-emerald-600/70 text-emerald-300 hover:bg-emerald-900/60' : 'bg-amber-950/50 border-amber-600/60 text-amber-300 hover:bg-amber-900/50'}`}
               title="Click to configure AI Provider"
             >
-              <span className={\`w-2 h-2 rounded-full \${aiConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}\`} />
+              <span className={`w-2 h-2 rounded-full ${aiConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
               <span>{aiConnected ? 'AI Connected' : 'Autonomous'}</span>
             </button>
 
@@ -193,7 +193,7 @@ export const Header: React.FC<HeaderProps> = ({
               disabled={isProcessing}
               className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold bg-[#145ca8] hover:bg-[#186dc4] active:bg-[#114f91] text-white rounded-lg transition-all shadow-md disabled:opacity-50 shrink-0"
             >
-              <Sparkles className={\`w-3.5 h-3.5 text-[#12cbe6] \${isProcessing ? 'animate-spin' : ''}\`} />
+              <Sparkles className={`w-3.5 h-3.5 text-[#12cbe6] ${isProcessing ? 'animate-spin' : ''}`} />
               <span>{isProcessing ? 'Mapping...' : 'Run Mapping'}</span>
             </button>
 
