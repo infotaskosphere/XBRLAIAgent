@@ -55,6 +55,8 @@ public sealed class MappedFact
     public int Confidence { get; set; } = 95;
     public string SourceDoc { get; set; } = "";
     public string SourcePageOrSheet { get; set; } = "";
+    public string PreviousSourceDoc { get; set; } = "";
+    public string PreviousSourcePageOrSheet { get; set; } = "";
     public string SagFieldId { get; set; } = "";
     public string SagScreenRef { get; set; } = "";
     public bool EditedManually { get; set; } = false;
