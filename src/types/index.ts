@@ -87,6 +87,8 @@ export interface MappedFact {
   confidence: number; // 0 - 100
   sourceDoc?: string;
   sourcePageOrSheet?: string;
+  previousSourceDoc?: string;
+  previousSourcePageOrSheet?: string;
   reviewNotes?: string;
   editedManually?: boolean;
   sagFieldId?: string;
