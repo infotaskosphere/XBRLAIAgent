@@ -1818,9 +1818,8 @@ public sealed class MainForm : Form
 
     private void UpdateAiStatus()
     {
-        aiStatus.Text = ai.IsConfigured
-            ? $"● AI READY ({settings.AiProvider})"
-            : "○ AI OFFLINE (Click AI Settings)";
+        aiStatus.Text = ai.IsConfigured ? "● AI Connected" : "● Autonomous";
+        aiStatus.BackColor = ai.IsConfigured ? Color.FromArgb(7, 65, 52) : Color.FromArgb(64, 48, 8);
         aiStatus.ForeColor = ai.IsConfigured ? Color.FromArgb(74, 222, 128) : Color.FromArgb(251, 191, 36);
     }
 
