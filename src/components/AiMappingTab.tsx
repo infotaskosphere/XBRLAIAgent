@@ -80,8 +80,8 @@ export const AiMappingTab: React.FC<AiMappingTabProps> = ({
 
   const handleRevertFact = (factId: string, entry: FactHistoryEntry) => {
     onUpdateFact(factId, {
-      currentValue: entry.newValue,
-      conceptName: entry.newConcept || undefined,
+      currentValue: entry.previousValue,
+      conceptName: entry.previousConcept || undefined,
       editedManually: false,
       status: 'CONFIRMED'
     }, {
