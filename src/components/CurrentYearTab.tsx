@@ -79,6 +79,17 @@ export const CurrentYearTab: React.FC<CurrentYearTabProps> = ({
         />
       ) : null}
 
+      {!showSources && facts && facts.length > 0 ? (
+        <div className="flex justify-end -mt-3 mb-1">
+          <button
+            onClick={onShowSources}
+            className="px-4 py-2 text-xs font-bold text-[#145ca8] bg-white border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors shadow-sm"
+          >
+            Load Current-Year Sources
+          </button>
+        </div>
+      ) : null}
+
       {!showSources && (!facts || facts.length === 0) ? (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 text-center">
           <div className="mx-auto max-w-2xl">
