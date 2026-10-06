@@ -187,13 +187,6 @@ export const Header: React.FC<HeaderProps> = ({
               <span>{isProcessing ? 'Mapping...' : 'Run Mapping'}</span>
             </button>
 
-            <button
-              onClick={onOpenSettings}
-              className="ml-auto p-2 text-slate-300 hover:text-white bg-[#0f2e56] hover:bg-[#163f73] border border-[#23538c] rounded-lg transition-colors shrink-0"
-              title="AI & Filing Settings"
-            >
-              <Settings className="w-4 h-4" />
-            </button>
           </div>
         </div>
       </div>
