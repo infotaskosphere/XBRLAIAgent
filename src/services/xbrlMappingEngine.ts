@@ -1,6 +1,7 @@
 import { MappedFact, TaxonomyStandard, UploadedDocument } from '../types';
 import { getTaxonomyConcepts } from './taxonomyData';
 import { detectFactAnomaly } from './anomalyDetectionEngine';
+import { buildPreviousYearReference, applyPreviousYearReference, PreviousYearReference } from './previousYearTaggingEngine';
 
 // Generates robust default initial mapping data for the selected taxonomy standard
 export function generateInitialFacts(standard: TaxonomyStandard): MappedFact[] {
@@ -606,38 +607,21 @@ export function mapDocumentsToTaxonomy(
   existingFacts: MappedFact[]
 ): { mappedFacts: MappedFact[]; stats: { total: number; confirmed: number; changed: number; reviewRequired: number; mathBalanced: boolean } } {
   const currentTextCombined = currentDocs.map(d => `${d.name}:\n${d.extractedText}`).join('\n\n');
-  const previousXbrlDoc = previousDocs.find(d => d.role === 'PY_XBRL_XML' || d.role === 'PY_SAG_XAG');
   
   // Clone existing facts or generate base
-  const facts: MappedFact[] = existingFacts.length > 0 
+  let facts: MappedFact[] = existingFacts.length > 0
     ? JSON.parse(JSON.stringify(existingFacts))
     : generateInitialFacts(standard);
 
-  // If previous XBRL doc exists, extract prior facts
-  if (previousXbrlDoc && previousXbrlDoc.extractedText) {
-    try {
-      const parser = new DOMParser();
-      const xmlDoc = parser.parseFromString(previousXbrlDoc.extractedText, 'text/xml');
-      
-      facts.forEach(fact => {
-        // Search by local tag name
-        const tagName = fact.conceptName.split(':').pop() || '';
-        const matchingElements = Array.from(xmlDoc.getElementsByTagName(tagName))
-          .concat(Array.from(xmlDoc.getElementsByTagName(fact.conceptName)));
-          
-        if (matchingElements.length > 0) {
-          const firstVal = matchingElements[0].textContent?.trim();
-          if (firstVal && !isNaN(Number(firstVal))) {
-            fact.previousValue = Number(firstVal);
-          } else if (firstVal) {
-            fact.previousValue = firstVal;
-          }
-        }
-      });
-    } catch {
-      // Keep existing
-    }
-  }
+  // Previous-year evidence is a first-class input to mapping.
+  // The reference engine reads the prior XBRL/XAG plus prior financial,
+  // audit and supporting documents before current-year extraction runs.
+  const previousYearReference: PreviousYearReference = buildPreviousYearReference(
+    previousDocs,
+    facts,
+    getTaxonomyConcepts(standard)
+  );
+  facts = applyPreviousYearReference(facts, previousYearReference);
 
   // Scan current documents for potential values
   facts.forEach(fact => {
@@ -690,12 +674,15 @@ export function mapDocumentsToTaxonomy(
 
   return {
     mappedFacts: facts,
+    previousYearReference,
     stats: {
       total,
       confirmed,
       changed,
       reviewRequired,
-      mathBalanced: Boolean(mathBalanced)
+      mathBalanced: Boolean(mathBalanced),
+      previousYearCoverage: previousYearReference.coverage,
+      previousYearConflicts: previousYearReference.conflicts.length
     }
   };
 }
