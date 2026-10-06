@@ -95,94 +95,236 @@ public sealed class MainForm : Form
 
     private void BuildShell()
     {
-        var header = new TableLayoutPanel
+        // Header intentionally mirrors the approved web preview so the Windows
+        // EXE and browser UI present the same product surface.
+        var header = new Panel
         {
             Dock = DockStyle.Top,
-            Height = 84,
+            Height = 104,
             BackColor = Navy,
-            ColumnCount = 3,
-            RowCount = 1,
-            Padding = new Padding(12, 0, 12, 0)
+            Padding = new Padding(16, 10, 16, 10)
         };
-        header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 220)); // Logo column
-        header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); // Title column
-        header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize)); // Right panel column
 
-        var logo = new LogoControl { Dock = DockStyle.Fill, BackColor = Navy };
-        header.Controls.Add(logo, 0, 0);
+        var brand = new Panel
+        {
+            Dock = DockStyle.Left,
+            Width = 205,
+            BackColor = Color.FromArgb(8, 31, 60)
+        };
+        var logo = new LogoControl
+        {
+            Dock = DockStyle.Fill,
+            BackColor = Color.FromArgb(8, 31, 60)
+        };
+        brand.Controls.Add(logo);
+        header.Controls.Add(brand);
 
-        var titlePanel = new Panel { Dock = DockStyle.Fill, BackColor = Navy, Padding = new Padding(8, 14, 8, 10) };
-        var title = new Label
+        var bridge = new Panel
+        {
+            Dock = DockStyle.Left,
+            Width = 220,
+            BackColor = Navy,
+            Padding = new Padding(14, 10, 8, 0)
+        };
+        bridge.Controls.Add(new Label
+        {
+            Text = "MCA Autonomous Bridge",
+            ForeColor = Color.FromArgb(165, 197, 235),
+            Font = new Font("Segoe UI Semibold", 9f, FontStyle.Bold),
+            AutoSize = true,
+            Location = new Point(0, 8)
+        });
+        bridge.Controls.Add(new Label
+        {
+            Text = "Reference-aware preparation • SAG automation",
+            ForeColor = Color.FromArgb(214, 225, 239),
+            Font = new Font("Segoe UI", 7.6f),
+            AutoSize = true,
+            Location = new Point(0, 30)
+        });
+        header.Controls.Add(bridge);
+
+        var titlePanel = new Panel
+        {
+            Dock = DockStyle.Left,
+            Width = 330,
+            BackColor = Navy,
+            Padding = new Padding(8, 2, 8, 0)
+        };
+        titlePanel.Controls.Add(new Label
         {
             Text = "XBRL AI Automation Engine",
             ForeColor = Color.White,
-            Font = new Font("Segoe UI Semibold", 15, FontStyle.Bold),
+            Font = new Font("Segoe UI Semibold", 14.5f, FontStyle.Bold),
             AutoSize = true,
-            Location = new Point(4, 14)
-        };
-        titlePanel.Controls.Add(title);
-
-        var subtitle = new Label
+            Location = new Point(0, 8)
+        });
+        titlePanel.Controls.Add(new Label
         {
             Text = "MCA Taxonomy (Ind AS / AS 2021) • Intelligent SAG Gen XBRL Direct Autowriter",
             ForeColor = Color.FromArgb(177, 202, 229),
-            Font = new Font("Segoe UI", 8.8f),
-            AutoSize = true,
-            Location = new Point(6, 44)
-        };
-        titlePanel.Controls.Add(subtitle);
-        header.Controls.Add(titlePanel, 1, 0);
+            Font = new Font("Segoe UI", 7.8f),
+            AutoSize = false,
+            Width = 318,
+            Height = 35,
+            Location = new Point(0, 38)
+        });
+        header.Controls.Add(titlePanel);
 
-        var rightPanel = new FlowLayoutPanel
+        var controls = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
-            FlowDirection = FlowDirection.RightToLeft,
             BackColor = Navy,
+            FlowDirection = FlowDirection.LeftToRight,
             WrapContents = false,
-            Padding = new Padding(0, 18, 0, 0),
-            AutoSize = true
+            AutoScroll = true,
+            Padding = new Padding(4, 12, 0, 0)
         };
 
-        // Auditor User Profile Badge Button
-        btnUser.Width = 190;
-        btnUser.Height = 44;
+        controls.Controls.Add(new Label
+        {
+            Text = "Taxonomy:",
+            ForeColor = Color.FromArgb(141, 177, 219),
+            Font = new Font("Segoe UI Semibold", 8f, FontStyle.Bold),
+            AutoSize = true,
+            Margin = new Padding(2, 10, 3, 0)
+        });
+
+        var btnIndAs = new Button
+        {
+            Text = "Ind AS",
+            Width = 68,
+            Height = 30,
+            FlatStyle = FlatStyle.Flat,
+            BackColor = Blue,
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI Semibold", 7.7f, FontStyle.Bold),
+            Margin = new Padding(0, 5, 2, 0),
+            Cursor = Cursors.Hand
+        };
+        btnIndAs.FlatAppearance.BorderSize = 0;
+        btnIndAs.Click += (_, _) =>
+        {
+            currentTaxonomy = TaxonomyStandard.IndAS;
+            currentFacts = TaxonomyCatalog.GetInitialFacts(currentTaxonomy);
+            AnomalyDetectionEngine.RunDetection(currentFacts);
+            if (taxonomySelector.Items.Count > 0) taxonomySelector.SelectedIndex = 0;
+            RefreshMappingGrid();
+            RefreshSagFieldGrid();
+            status.Text = "Taxonomy switched to MCA Ind AS";
+        };
+        controls.Controls.Add(btnIndAs);
+
+        var btnNonIndAs = new Button
+        {
+            Text = "Non-Ind AS",
+            Width = 84,
+            Height = 30,
+            FlatStyle = FlatStyle.Flat,
+            BackColor = Color.FromArgb(11, 36, 71),
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI Semibold", 7.7f, FontStyle.Bold),
+            Margin = new Padding(0, 5, 7, 0),
+            Cursor = Cursors.Hand
+        };
+        btnNonIndAs.FlatAppearance.BorderColor = Color.FromArgb(30, 70, 119);
+        btnNonIndAs.Click += (_, _) =>
+        {
+            currentTaxonomy = TaxonomyStandard.NonIndAS;
+            currentFacts = TaxonomyCatalog.GetInitialFacts(currentTaxonomy);
+            AnomalyDetectionEngine.RunDetection(currentFacts);
+            if (taxonomySelector.Items.Count > 1) taxonomySelector.SelectedIndex = 1;
+            RefreshMappingGrid();
+            RefreshSagFieldGrid();
+            status.Text = "Taxonomy switched to Non-Ind AS (AS 2021)";
+        };
+        controls.Controls.Add(btnNonIndAs);
+
+        var detect = new Button
+        {
+            Text = "▣ Detect Gen XBRL",
+            Width = 112,
+            Height = 30,
+            FlatStyle = FlatStyle.Flat,
+            BackColor = Color.FromArgb(15, 46, 86),
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI Semibold", 7.8f, FontStyle.Bold),
+            Margin = new Padding(0, 5, 5, 0),
+            Cursor = Cursors.Hand
+        };
+        detect.FlatAppearance.BorderColor = Color.FromArgb(35, 83, 140);
+        detect.Click += (_, _) => DetectGenXbrl();
+        controls.Controls.Add(detect);
+
+        aiStatus.AutoSize = false;
+        aiStatus.Width = 88;
+        aiStatus.Height = 30;
+        aiStatus.TextAlign = ContentAlignment.MiddleCenter;
+        aiStatus.Font = new Font("Segoe UI Semibold", 7.7f, FontStyle.Bold);
+        aiStatus.BackColor = Color.FromArgb(64, 48, 8);
+        aiStatus.ForeColor = Color.FromArgb(251, 191, 36);
+        aiStatus.Margin = new Padding(0, 5, 5, 0);
+        aiStatus.Cursor = Cursors.Hand;
+        aiStatus.Click += (_, _) => ShowAiSettings();
+        controls.Controls.Add(aiStatus);
+
+        var runMapping = new Button
+        {
+            Text = "✣ Run Mapping",
+            Width = 102,
+            Height = 30,
+            FlatStyle = FlatStyle.Flat,
+            BackColor = Blue,
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI Semibold", 7.9f, FontStyle.Bold),
+            Margin = new Padding(0, 5, 5, 0),
+            Cursor = Cursors.Hand
+        };
+        runMapping.FlatAppearance.BorderSize = 0;
+        runMapping.Click += async (_, _) => await RunAiMappingAsync();
+        controls.Controls.Add(runMapping);
+
+        btnUser.Width = 156;
+        btnUser.Height = 30;
         btnUser.FlatStyle = FlatStyle.Flat;
-        btnUser.BackColor = Color.FromArgb(14, 42, 77);
+        btnUser.BackColor = Color.FromArgb(13, 42, 79);
         btnUser.ForeColor = Color.White;
-        btnUser.Font = new Font("Segoe UI Semibold", 8f);
+        btnUser.Font = new Font("Segoe UI Semibold", 7.8f);
         btnUser.Cursor = Cursors.Hand;
-        btnUser.FlatAppearance.BorderColor = Color.FromArgb(35, 78, 128);
+        btnUser.FlatAppearance.BorderColor = Color.FromArgb(35, 83, 140);
         btnUser.Click += (_, _) => ShowLogin();
-        btnUser.Margin = new Padding(6, 0, 0, 0);
-        rightPanel.Controls.Add(btnUser);
+        btnUser.Margin = new Padding(0, 5, 5, 0);
+        controls.Controls.Add(btnUser);
 
         var settingsButton = new Button
         {
-            Text = "⚙ AI SETTINGS",
-            Width = 110,
-            Height = 44,
+            Text = "⚙",
+            Width = 36,
+            Height = 30,
             FlatStyle = FlatStyle.Flat,
-            BackColor = Color.FromArgb(18, 48, 82),
+            BackColor = Color.FromArgb(15, 46, 86),
             ForeColor = Color.White,
-            Font = new Font("Segoe UI Semibold", 8.2f),
+            Font = new Font("Segoe UI", 11, FontStyle.Bold),
             Cursor = Cursors.Hand,
-            Margin = new Padding(6, 0, 0, 0)
+            Margin = new Padding(0, 5, 0, 0),
+            TabStop = false
         };
-        settingsButton.FlatAppearance.BorderColor = Color.FromArgb(46, 83, 121);
+        settingsButton.FlatAppearance.BorderColor = Color.FromArgb(35, 83, 140);
         settingsButton.Click += (_, _) => ShowAiSettings();
-        rightPanel.Controls.Add(settingsButton);
+        controls.Controls.Add(settingsButton);
 
-        aiStatus.AutoSize = true;
-        aiStatus.Font = new Font("Segoe UI Semibold", 8.2f);
-        aiStatus.ForeColor = Color.FromArgb(161, 190, 220);
-        aiStatus.Margin = new Padding(0, 14, 10, 0);
-        rightPanel.Controls.Add(aiStatus);
+        header.Controls.Add(controls);
 
-        header.Controls.Add(rightPanel, 2, 0);
         Controls.Add(header);
 
         // Bottom status strip
-        var footer = new Panel { Dock = DockStyle.Bottom, Height = 32, BackColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
+        var footer = new Panel
+        {
+            Dock = DockStyle.Bottom,
+            Height = 32,
+            BackColor = Color.White,
+            BorderStyle = BorderStyle.FixedSingle
+        };
         progress.Width = 180;
         progress.Height = 16;
         progress.Location = new Point(12, 7);
@@ -196,7 +338,7 @@ public sealed class MainForm : Form
 
         sagStatus.AutoSize = true;
         sagStatus.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-        sagStatus.Location = new Point(Width - 360, 6);
+        sagStatus.Location = new Point(Math.Max(500, ClientSize.Width - 360), 6);
         sagStatus.Text = "SAG Gen XBRL: Scanning...";
         sagStatus.ForeColor = Color.FromArgb(92, 104, 120);
         footer.Controls.Add(sagStatus);
@@ -235,10 +377,10 @@ public sealed class MainForm : Form
         };
 
         var tabCurrent = new TabPage("01  CURRENT YEAR") { BackColor = Surface };
-        var tabPrevious = new TabPage("02  PREVIOUS REF") { BackColor = Surface };
-        var tabMapping = new TabPage("03  AI MAPPING") { BackColor = Surface };
-        var tabSag = new TabPage("04  SAG AUTOWRITER") { BackColor = Surface };
-        var tabGuides = new TabPage("05  📚 GUIDES") { BackColor = Surface };
+        var tabPrevious = new TabPage("02  PREVIOUS REFERENCE") { BackColor = Surface };
+        var tabMapping = new TabPage("03  AI MAPPING & COMPARISON") { BackColor = Surface };
+        var tabSag = new TabPage("04  SAG GEN XBRL AUTOWRITER") { BackColor = Surface };
+        var tabGuides = new TabPage("05  📚 MUST-READ GUIDES") { BackColor = Surface };
 
         BuildCurrentTab(tabCurrent);
         BuildPreviousTab(tabPrevious);
@@ -263,84 +405,103 @@ public sealed class MainForm : Form
     {
         var panel = NewContentPanel();
 
-        // Hero block in vertical FlowLayoutPanel to eliminate any chance of label collision
-        var hero = new FlowLayoutPanel
+        // Dashboard-first Current Year experience. The detailed source ingestion
+        // workspace remains available immediately below the dashboard.
+        var stack = new FlowLayoutPanel
         {
-            Location = new Point(25, 16),
-            Width = 1040,
+            Dock = DockStyle.Top,
             AutoSize = true,
             FlowDirection = FlowDirection.TopDown,
-            WrapContents = false
+            WrapContents = false,
+            Padding = new Padding(18, 16, 18, 24),
+            BackColor = Surface
         };
-        hero.Controls.Add(new Label
+        panel.Controls.Add(stack);
+
+        var dashboard = BuildExecutiveDashboardPanel();
+        stack.Controls.Add(dashboard);
+
+        var sourceSection = new Panel
         {
-            Text = "Current-Year Financial Statements & Ingestion Center",
-            Font = new Font("Segoe UI Semibold", 17, FontStyle.Bold),
+            Width = Math.Max(900, ClientSize.Width - 70),
+            Height = 330,
+            BackColor = Color.White,
+            BorderStyle = BorderStyle.FixedSingle,
+            Margin = new Padding(0, 18, 0, 0)
+        };
+
+        var sourceTitle = new Label
+        {
+            Text = "CURRENT-YEAR SOURCE INGESTION WORKSPACE",
+            Font = new Font("Segoe UI Semibold", 10.5f, FontStyle.Bold),
             ForeColor = Navy,
             AutoSize = true,
-            Margin = new Padding(0, 0, 0, 4)
-        });
-        hero.Controls.Add(new Label
+            Location = new Point(16, 14)
+        };
+        sourceSection.Controls.Add(sourceTitle);
+
+        var sourceSubtitle = new Label
         {
-            Text = "Upload the statutory audit report, financial statements, Excel trial balance, and supporting disclosures. All documents are cross-referenced as evidence.",
-            Font = new Font("Segoe UI", 9.2f),
+            Text = "Upload the statutory audit report, financial statements, Excel trial balance and supporting disclosures. These sources drive the live mapping dashboard above.",
+            Font = new Font("Segoe UI", 8.8f),
             ForeColor = Color.FromArgb(100, 116, 139),
-            AutoSize = true,
-            MaximumSize = new Size(1020, 0)
-        });
-        panel.Controls.Add(hero);
+            AutoSize = false,
+            Width = sourceSection.Width - 32,
+            Height = 34,
+            Location = new Point(16, 36)
+        };
+        sourceSection.Controls.Add(sourceSubtitle);
 
-        // High-level summary dashboard panel on the landing page
-        var summaryDashboard = BuildExecutiveDashboardPanel();
-        summaryDashboard.Location = new Point(25, 88);
-        panel.Controls.Add(summaryDashboard);
+        var card = new Panel
+        {
+            Width = sourceSection.Width - 32,
+            Height = 195,
+            BackColor = Color.FromArgb(248, 250, 252),
+            BorderStyle = BorderStyle.FixedSingle,
+            Location = new Point(16, 78)
+        };
 
-        var card = Card(1040, 245);
-        card.Location = new Point(25, 250);
         AddFileRow(card, "CURRENT AUDIT REPORT (PDF)", currentPdf, () => BrowseFile(currentPdf, "PDF files (*.pdf)|*.pdf|All files (*.*)|*.*"), 0);
         AddFileRow(card, "FINANCIAL STATEMENTS / EXCEL", currentFinancialPdf, () => BrowseFile(currentFinancialPdf, "Excel/PDF files (*.xlsx;*.xls;*.pdf)|*.xlsx;*.xls;*.pdf|All files (*.*)|*.*"), 1);
         AddFileRow(card, "SUPPORTING DISCLOSURES / NOTES", currentSupportingPdf, () => BrowseFile(currentSupportingPdf, "PDF/Word/Excel (*.pdf;*.docx;*.xlsx)|*.pdf;*.docx;*.xlsx|All files (*.*)|*.*"), 2);
-        panel.Controls.Add(card);
+        sourceSection.Controls.Add(card);
 
-        // Action Buttons Row with generous button widths
-        var actionsBar = new FlowLayoutPanel
+        var ingestActions = new FlowLayoutPanel
         {
-            Location = new Point(25, 510),
-            Width = 1040,
-            Height = 48,
+            Location = new Point(16, 280),
+            Width = sourceSection.Width - 32,
+            Height = 38,
             FlowDirection = FlowDirection.LeftToRight,
             WrapContents = false
         };
 
-        var analyze = PrimaryButton("⚡ ANALYSE SOURCES & MAP TO TAXONOMY", 340);
-        analyze.Margin = new Padding(0, 0, 12, 0);
+        var analyze = PrimaryButton("⚡ ANALYSE SOURCES & MAP TO TAXONOMY", 320);
+        analyze.Height = 34;
         analyze.Click += async (_, _) => await AnalyzeCurrentAsync();
-        actionsBar.Controls.Add(analyze);
+        ingestActions.Controls.Add(analyze);
 
-        var btnScan = PrimaryButton("🚨 SCAN ANOMALIES", 190);
-        btnScan.BackColor = Color.FromArgb(185, 28, 28);
-        btnScan.Margin = new Padding(0, 0, 12, 0);
-        btnScan.Click += (_, _) =>
+        var scan = SecondaryButton("🚨 SCAN ANOMALIES", 170);
+        scan.Height = 34;
+        scan.Click += (_, _) =>
         {
             AnomalyDetectionEngine.RunDetection(currentFacts);
             RefreshMappingGrid();
-            var count = currentFacts.Count(f => f.Anomaly != null && f.Anomaly.IsAnomaly);
-            MessageBox.Show($"Anomaly scan completed: {count} outlier fact(s) detected.", "Anomaly Scan", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            tabs.SelectedIndex = 2; // Jump to mapping tab
+            RefreshSagFieldGrid();
+            tabs.SelectedIndex = 2;
+            status.Text = "Anomaly scan completed";
         };
-        actionsBar.Controls.Add(btnScan);
+        ingestActions.Controls.Add(scan);
 
-        var btnToSag = PrimaryButton("CONTINUE TO SAG ➔", 210);
-        btnToSag.BackColor = Emerald;
-        btnToSag.Margin = new Padding(0, 0, 0, 0);
-        btnToSag.Click += (_, _) => tabs.SelectedIndex = 3;
-        actionsBar.Controls.Add(btnToSag);
+        sourceSection.Controls.Add(ingestActions);
+        stack.Controls.Add(sourceSection);
 
-        panel.Controls.Add(actionsBar);
-
-        var note = InfoCard("Multi-Format Parsing & MCA Alignment", "The engine automatically parses and cross-references text and numeric tables from PDFs, Excel sheets (.xlsx), and Word documents (.docx). Values are cross-checked across all uploaded files.", 1040);
-        note.Location = new Point(25, 570);
-        panel.Controls.Add(note);
+        var note = InfoCard(
+            "Evidence-First Filing Rule",
+            "Current-year values are sourced from the current-year evidence set. Previous-year references are used for concept/context alignment and variance analysis, not for blindly carrying forward current-year amounts.",
+            sourceSection.Width);
+        note.Height = 70;
+        note.Margin = new Padding(0, 12, 0, 0);
+        stack.Controls.Add(note);
 
         page.Controls.Add(panel);
     }
@@ -349,121 +510,268 @@ public sealed class MainForm : Form
     {
         var panel = new Panel
         {
-            Width = 1040,
-            Height = 148,
+            Width = Math.Max(900, ClientSize.Width - 70),
+            Height = 330,
             BackColor = Color.White,
-            BorderStyle = BorderStyle.FixedSingle
+            BorderStyle = BorderStyle.FixedSingle,
+            Margin = new Padding(0, 0, 0, 0)
         };
 
-        var topBanner = new Panel
+        var hero = new Panel
         {
             Dock = DockStyle.Top,
-            Height = 38,
-            BackColor = Navy,
-            Padding = new Padding(12, 6, 12, 6)
+            Height = 150,
+            BackColor = Color.FromArgb(24, 102, 181),
+            Padding = new Padding(24, 18, 24, 14)
         };
-        var lblBanner = new Label
+
+        var badge = new Label
         {
-            Text = "📊 AUDITOR EXECUTIVE OVERVIEW & FILING HEALTH • Real-Time Telemetry",
+            Text = "AUDITOR EXECUTIVE OVERVIEW",
             ForeColor = Cyan,
-            Font = new Font("Segoe UI Semibold", 8.5f, FontStyle.Bold),
+            BackColor = Color.FromArgb(35, 124, 199),
+            Font = new Font("Segoe UI Semibold", 8f, FontStyle.Bold),
             AutoSize = true,
-            Location = new Point(12, 10)
+            Padding = new Padding(7, 3, 7, 3),
+            Location = new Point(24, 16)
         };
-        topBanner.Controls.Add(lblBanner);
+        hero.Controls.Add(badge);
 
-        var btnQuickMap = new Button
+        var taxonomyLabel = new Label
         {
-            Text = "Inspect 22 Facts ➔",
+            Text = "•  " + (currentTaxonomy == TaxonomyStandard.IndAS
+                ? "Ind AS"
+                : "Non-Ind AS (Companies AS Rules 2021)"),
             ForeColor = Color.White,
-            BackColor = Color.FromArgb(18, 48, 82),
-            FlatStyle = FlatStyle.Flat,
-            Font = new Font("Segoe UI Semibold", 8f),
-            Size = new Size(130, 26),
-            Location = new Point(panel.Width - 255, 6),
-            Anchor = AnchorStyles.Top | AnchorStyles.Right,
-            Cursor = Cursors.Hand
+            Font = new Font("Segoe UI Semibold", 8.6f),
+            AutoSize = true,
+            Location = new Point(205, 20)
         };
-        btnQuickMap.FlatAppearance.BorderSize = 0;
-        btnQuickMap.Click += (_, _) => tabs.SelectedIndex = 2;
-        topBanner.Controls.Add(btnQuickMap);
+        hero.Controls.Add(taxonomyLabel);
 
-        var btnOutliers = new Button
+        var title = new Label
         {
-            Text = "🚨 4 Outliers",
+            Text = "Financial Statement Intelligence & Filing Health",
             ForeColor = Color.White,
-            BackColor = Color.FromArgb(185, 28, 28),
-            FlatStyle = FlatStyle.Flat,
-            Font = new Font("Segoe UI Semibold", 8f),
-            Size = new Size(105, 26),
-            Location = new Point(panel.Width - 118, 6),
-            Anchor = AnchorStyles.Top | AnchorStyles.Right,
-            Cursor = Cursors.Hand
+            Font = new Font("Segoe UI", 19, FontStyle.Bold),
+            AutoSize = true,
+            Location = new Point(24, 48)
         };
-        btnOutliers.FlatAppearance.BorderSize = 0;
-        btnOutliers.Click += (_, _) => tabs.SelectedIndex = 2;
-        topBanner.Controls.Add(btnOutliers);
+        hero.Controls.Add(title);
 
-        panel.Controls.Add(topBanner);
+        var desc = new Label
+        {
+            Text = "Real-time audit telemetry across mapped taxonomy concepts, dual-period variance anomalies, and MCA Schedule III integrity.",
+            ForeColor = Color.FromArgb(213, 231, 247),
+            Font = new Font("Segoe UI", 8.8f),
+            AutoSize = false,
+            Width = Math.Max(560, panel.Width - 390),
+            Height = 34,
+            Location = new Point(24, 91)
+        };
+        hero.Controls.Add(desc);
 
-        var content = new Panel
+        var heroActions = new FlowLayoutPanel
+        {
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false,
+            Width = 330,
+            Height = 38,
+            Location = new Point(Math.Max(640, panel.Width - 355), 88)
+        };
+        hero.Controls.Add(heroActions);
+
+        var inspect = PrimaryButton("INSPECT MAPPING TABLE  ›", 150);
+        inspect.Height = 34;
+        inspect.BackColor = Color.FromArgb(55, 122, 183);
+        inspect.FlatAppearance.BorderColor = Color.FromArgb(105, 169, 219);
+        inspect.Click += (_, _) => tabs.SelectedIndex = 2;
+        heroActions.Controls.Add(inspect);
+
+        var export = PrimaryButton("EXPORT SAG GEN XBRL  →", 166);
+        export.Height = 34;
+        export.BackColor = Emerald;
+        export.Click += (_, _) => tabs.SelectedIndex = 3;
+        heroActions.Controls.Add(export);
+
+        panel.Controls.Add(hero);
+
+        var metrics = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            BackColor = Color.White
+            ColumnCount = 4,
+            RowCount = 1,
+            BackColor = Color.White,
+            Padding = new Padding(0),
+            Margin = new Padding(0)
         };
+        metrics.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25f));
+        metrics.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25f));
+        metrics.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25f));
+        metrics.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25f));
 
         var totalFacts = currentFacts.Count;
-        var avgConf = "96.4%";
-        var anomalyCount = currentFacts.Count(f => f.Anomaly != null && f.Anomaly.IsAnomaly);
+        var confirmed = currentFacts.Count(f => f.Status == MappingStatus.CONFIRMED);
+        var changed = currentFacts.Count(f => f.Status == MappingStatus.CHANGED);
+        var review = currentFacts.Count(f => f.Status == MappingStatus.REVIEW_REQUIRED);
+        var bsFacts = currentFacts.Count(f => string.Equals(f.Schedule, "BALANCE_SHEET", StringComparison.OrdinalIgnoreCase));
+        var plFacts = currentFacts.Count(f => string.Equals(f.Schedule, "PROFIT_LOSS", StringComparison.OrdinalIgnoreCase));
+        var anomalies = currentFacts.Count(f => f.Anomaly != null && f.Anomaly.IsAnomaly);
+        var high = currentFacts.Count(f => f.Anomaly?.Severity == string.Equals(f.Anomaly?.Severity, "HIGH", StringComparison.OrdinalIgnoreCase));
+        var medium = currentFacts.Count(f => f.Anomaly?.Severity == string.Equals(f.Anomaly?.Severity, "MEDIUM", StringComparison.OrdinalIgnoreCase));
 
-        AddKpiCard(content, "Total Facts Mapped", totalFacts.ToString(), "18 Updated • 4 Confirmed", 12, Blue);
-        AddKpiCard(content, "Confidence Score Avg", avgConf, "High Match Precision (MCA)", 268, Emerald);
-        AddKpiCard(content, "Anomaly Alerts Detected", anomalyCount > 0 ? $"{anomalyCount} Outliers" : "0 Clean", anomalyCount > 0 ? "High Variance (> 40%)" : "Zero Material Breaches", 524, anomalyCount > 0 ? Color.FromArgb(185, 28, 28) : Emerald);
-        AddKpiCard(content, "Filing Readiness & Balance", "✓ Balanced", "92% Ready (Assets = L+E)", 780, Emerald);
+        var confidence = totalFacts > 0
+            ? Math.Round(currentFacts.Average(f => Math.Max(0, Math.Min(100, f.Confidence))), 1)
+            : 0d;
+        var assets = currentFacts.FirstOrDefault(f => f.ConceptName.Contains("Assets", StringComparison.OrdinalIgnoreCase) &&
+                                                       !f.ConceptName.Contains("Current", StringComparison.OrdinalIgnoreCase) &&
+                                                       !f.ConceptName.Contains("Noncurrent", StringComparison.OrdinalIgnoreCase))?.CurrentValue;
+        var equityLiabilities = currentFacts.FirstOrDefault(f => f.ConceptName.Contains("EquityAndLiabilities", StringComparison.OrdinalIgnoreCase))?.CurrentValue;
 
-        panel.Controls.Add(content);
+        var balanced = decimal.TryParse(assets, out var assetValue) &&
+                       decimal.TryParse(equityLiabilities, out var equityLiabilityValue) &&
+                       assetValue == equityLiabilityValue;
+
+        var readiness = totalFacts > 0
+            ? (int)Math.Round(((double)(totalFacts - review) / totalFacts) * 100d)
+            : 0;
+
+        metrics.Controls.Add(CreateDashboardKpi(
+            "TOTAL FACTS MAPPED",
+            totalFacts.ToString(),
+            "line items",
+            $"{bsFacts} Balance Sheet • {plFacts} P&L",
+            $"{confirmed} Auto-Verified",
+            Blue,
+            false,
+            0
+        ), 0, 0);
+
+        metrics.Controls.Add(CreateDashboardKpi(
+            "CONFIDENCE SCORE AVG",
+            $"{confidence:F1}%",
+            "AI Match",
+            "MCA Schema Grounded",
+            $"{confirmed} Auto-Verified",
+            Emerald,
+            true,
+            confidence
+        ), 1, 0);
+
+        metrics.Controls.Add(CreateDashboardKpi(
+            "ANOMALY ALERTS DETECTED",
+            anomalies.ToString(),
+            "outliers flagged",
+            anomalies > 0 ? $"{high} High • {medium} Medium" : "Zero material variances",
+            anomalies > 0 ? "Review ›" : "Clean Trend",
+            anomalies > 0 ? Color.FromArgb(185, 28, 28) : Emerald,
+            false,
+            0
+        ), 2, 0);
+
+        metrics.Controls.Add(CreateDashboardKpi(
+            "FILING READINESS & BALANCE",
+            $"{readiness}%",
+            "statutory audit ready",
+            balanced ? "✓ Assets = Equity + Liab" : "⚠ Balance Sheet Check",
+            $"{review} Pending Reviews",
+            balanced ? Emerald : Amber,
+            true,
+            readiness
+        ), 3, 0);
+
+        panel.Controls.Add(metrics);
         return panel;
     }
 
-    private static void AddKpiCard(Panel parent, string title, string val, string sub, int x, Color valColor)
+    private Panel CreateDashboardKpi(
+        string title,
+        string value,
+        string suffix,
+        string footerLeft,
+        string footerRight,
+        Color accent,
+        bool showProgress,
+        double progressValue)
     {
         var box = new Panel
         {
-            Width = 244,
-            Height = 92,
-            Location = new Point(x, 6),
-            BackColor = Color.FromArgb(248, 250, 252),
+            Dock = DockStyle.Fill,
+            BackColor = Color.White,
+            Padding = new Padding(18, 14, 18, 10),
+            Margin = new Padding(0),
             BorderStyle = BorderStyle.FixedSingle
         };
 
-        box.Controls.Add(new Label
+        var titleLabel = new Label
         {
             Text = title,
-            Font = new Font("Segoe UI Semibold", 8.2f),
-            ForeColor = Color.FromArgb(100, 116, 139),
-            Location = new Point(10, 8),
-            AutoSize = true
-        });
+            Font = new Font("Segoe UI Semibold", 8.2f, FontStyle.Bold),
+            ForeColor = Color.FromArgb(92, 104, 120),
+            AutoSize = false,
+            Width = Math.Max(180, box.Width - 36),
+            Height = 24,
+            Location = new Point(18, 13),
+            Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right
+        };
+        box.Controls.Add(titleLabel);
 
-        box.Controls.Add(new Label
+        var valueLabel = new Label
         {
-            Text = val,
-            Font = new Font("Segoe UI", 15, FontStyle.Bold),
-            ForeColor = valColor,
-            Location = new Point(10, 28),
-            AutoSize = true
-        });
+            Text = value,
+            Font = new Font("Segoe UI", 22, FontStyle.Bold),
+            ForeColor = accent,
+            AutoSize = true,
+            Location = new Point(18, 39)
+        };
+        box.Controls.Add(valueLabel);
 
-        box.Controls.Add(new Label
+        var suffixLabel = new Label
         {
-            Text = sub,
-            Font = new Font("Segoe UI", 7.8f),
+            Text = suffix,
+            Font = new Font("Segoe UI", 8f),
             ForeColor = Color.FromArgb(148, 163, 184),
-            Location = new Point(10, 62),
-            AutoSize = true
-        });
+            AutoSize = true,
+            Location = new Point(18 + Math.Min(190, value.Length * 14 + 8), 49)
+        };
+        box.Controls.Add(suffixLabel);
 
-        parent.Controls.Add(box);
+        if (showProgress)
+        {
+            var track = new Panel
+            {
+                BackColor = Color.FromArgb(229, 235, 242),
+                Width = Math.Max(150, box.Width - 36),
+                Height = 6,
+                Location = new Point(18, 76),
+                Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right
+            };
+            box.Controls.Add(track);
+
+            var fill = new Panel
+            {
+                BackColor = accent,
+                Height = 6,
+                Width = (int)Math.Round(track.Width * Math.Max(0d, Math.Min(100d, progressValue)) / 100d),
+                Location = new Point(0, 0)
+            };
+            track.Controls.Add(fill);
+        }
+
+        var footer = new Label
+        {
+            Text = $"{footerLeft}    {footerRight}",
+            Font = new Font("Segoe UI", 7.8f),
+            ForeColor = Color.FromArgb(100, 116, 139),
+            AutoSize = false,
+            Width = Math.Max(180, box.Width - 36),
+            Height = 28,
+            Location = new Point(18, showProgress ? 90 : 72),
+            Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right
+        };
+        box.Controls.Add(footer);
+
+        return box;
     }
 
     // -------------------------------------------------------------
@@ -1510,9 +1818,8 @@ public sealed class MainForm : Form
 
     private void UpdateAiStatus()
     {
-        aiStatus.Text = ai.IsConfigured
-            ? $"● AI READY ({settings.AiProvider})"
-            : "○ AI OFFLINE (Click AI Settings)";
+        aiStatus.Text = ai.IsConfigured ? "● AI Connected" : "● Autonomous";
+        aiStatus.BackColor = ai.IsConfigured ? Color.FromArgb(7, 65, 52) : Color.FromArgb(64, 48, 8);
         aiStatus.ForeColor = ai.IsConfigured ? Color.FromArgb(74, 222, 128) : Color.FromArgb(251, 191, 36);
     }
 

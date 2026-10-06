@@ -61,10 +61,10 @@ export const ExecutiveSummaryPanel: React.FC<ExecutiveSummaryPanelProps> = ({
     : 85;
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden mb-6">
+    <div className="xbrl-dashboard-shell bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden mb-6">
       
       {/* Top Header Bar */}
-      <div className="bg-gradient-to-r from-[#071b36] via-[#0d2a4f] to-[#145ca8] p-5 sm:p-6 text-white">
+      <div className="xbrl-dashboard-hero bg-gradient-to-r from-[#071b36] via-[#0d2a4f] to-[#145ca8] p-5 sm:p-6 text-white">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
@@ -104,12 +104,12 @@ export const ExecutiveSummaryPanel: React.FC<ExecutiveSummaryPanelProps> = ({
       </div>
 
       {/* Primary KPI Metric Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-slate-100 bg-white">
+      <div className="xbrl-kpi-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-slate-100 bg-white">
         
         {/* Metric 1: Total Facts Mapped */}
         <div 
           onClick={onNavigateToMapping}
-          className="p-5 hover:bg-slate-50/70 transition-colors cursor-pointer group"
+          className="xbrl-kpi p-5 hover:bg-slate-50/70 transition-colors cursor-pointer group"
         >
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
@@ -135,7 +135,7 @@ export const ExecutiveSummaryPanel: React.FC<ExecutiveSummaryPanelProps> = ({
         </div>
 
         {/* Metric 2: Confidence Score Average */}
-        <div className="p-5 hover:bg-slate-50/70 transition-colors">
+        <div className="xbrl-kpi p-5 hover:bg-slate-50/70 transition-colors">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
               <Sparkles className="w-4 h-4 text-emerald-600" />
@@ -168,7 +168,7 @@ export const ExecutiveSummaryPanel: React.FC<ExecutiveSummaryPanelProps> = ({
         {/* Metric 3: Anomaly Alerts Detected */}
         <div 
           onClick={onNavigateToMapping}
-          className={`p-5 transition-colors cursor-pointer group ${
+          className={`xbrl-kpi p-5 transition-colors cursor-pointer group ${
             anomalyFacts.length > 0 ? 'hover:bg-red-50/30' : 'hover:bg-slate-50/70'
           }`}
         >
@@ -210,7 +210,7 @@ export const ExecutiveSummaryPanel: React.FC<ExecutiveSummaryPanelProps> = ({
         </div>
 
         {/* Metric 4: Balance Sheet Integrity & Readiness */}
-        <div className="p-5 hover:bg-slate-50/70 transition-colors">
+        <div className="xbrl-kpi p-5 hover:bg-slate-50/70 transition-colors">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
               <Scale className="w-4 h-4 text-[#145ca8]" />
